@@ -1,6 +1,6 @@
 <template>
   <div class="flex flex-col h-dvh max-w-md mx-auto bg-white">
-    <main class="flex-1 overflow-y-auto">
+    <main ref="mainRef" class="flex-1 overflow-y-auto">
       <RouterView />
     </main>
     <nav v-if="showTabBar" class="flex border-t border-gray-200 bg-white pb-safe">
@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import {
@@ -35,9 +35,19 @@ import {
 
 const route = useRoute()
 const auth = useAuthStore()
+const mainRef = ref(null)
+
 auth.init()
 
-const showTabBar = computed(() => !['/welcome'].includes(route.path))
+watch(() => route.path, () => {
+  if (mainRef.value) {
+    mainRef.value.scrollTop = 0
+  }
+})
+
+const showTabBar = computed(() =>
+  !['/welcome', '/awareness'].includes(route.path)
+)
 
 const tabs = [
   { path: '/home',    label: 'Home',    icon: PhHouseSimple },

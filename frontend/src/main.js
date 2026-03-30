@@ -1,10 +1,12 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
+import { getAuth } from 'firebase/auth'
 import App from './App.vue'
 import './style.css'
 
 import WelcomeView from './views/WelcomeView.vue'
+import AwarenessView from './views/AwarenessView.vue'
 import HomeView from './views/HomeView.vue'
 import TasksView from './views/TasksView.vue'
 import MapView from './views/MapView.vue'
@@ -15,14 +17,18 @@ const protectedRoutes = ['/home', '/tasks', '/map', '/badges', '/profile']
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior() {
+    return { top: 0 }
+  },
   routes: [
-    { path: '/',        redirect: '/welcome' },
-    { path: '/welcome', component: WelcomeView },
-    { path: '/home',    component: HomeView },
-    { path: '/tasks',   component: TasksView },
-    { path: '/map',     component: MapView },
-    { path: '/badges',  component: BadgesView },
-    { path: '/profile', component: ProfileView },
+    { path: '/',            redirect: '/welcome' },
+    { path: '/welcome',     component: WelcomeView },
+    { path: '/awareness',   component: AwarenessView },
+    { path: '/home',        component: HomeView },
+    { path: '/tasks',       component: TasksView },
+    { path: '/map',         component: MapView },
+    { path: '/badges',      component: BadgesView },
+    { path: '/profile',     component: ProfileView },
   ]
 })
 
@@ -33,8 +39,18 @@ app.use(router)
 
 import { useAuthStore } from './stores/auth'
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
+
+  if (auth.loading) {
+    await new Promise((resolve) => {
+      const unsubscribe = getAuth().onAuthStateChanged(() => {
+        unsubscribe()
+        resolve()
+      })
+    })
+  }
+
   if (protectedRoutes.includes(to.path) && !auth.isLoggedIn) {
     return '/welcome'
   }

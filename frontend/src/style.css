@@ -1,5 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
 @import "tailwindcss";
+
 :root {
   --font-game: 'Nunito', sans-serif;
   --color-primary: #22c55e;
@@ -59,4 +60,29 @@
   aspect-ratio: 1;
   border-radius: 10px;
   border-bottom: 3px solid;
+}
+
+.float-circle {
+  position: absolute;
+  border-radius: 50%;
+  background: white;
+  animation: floatUp 4s ease-in-out infinite alternate;
+}
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-12px) scale(1.05);
+  }
+  100% {
+    transform: translateY(4px) scale(0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-circle {
+    animation: none;
+  }
 }
