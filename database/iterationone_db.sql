@@ -21,8 +21,8 @@ CREATE TABLE if not exists series (
 -- task
 -- All the task which user can complete.
 -- Task form now is only photo, but we can add more form in the future, such as video, text answer, etc.
-
-task_id               INT            AUTO_INCREMENT PRIMARY KEY COMMENT 'Primary key',
+CREATE TABLE if not exists task (
+    task_id               INT            AUTO_INCREMENT PRIMARY KEY COMMENT 'Primary key',
     series_id             INT            NOT NULL                   COMMENT 'FK to series',
     task_name             VARCHAR(255)   NOT NULL                   COMMENT 'Task name',
     task_description      TEXT           NULL                       COMMENT 'Task description',
@@ -88,9 +88,10 @@ CREATE TABLE if not exists user_task (
 );
 
 -- badge
--- Store badge definitions.
+-- Store badge definitions. trigger_type defines the unlocking logic, and related fields are conditionally required based on the type.
 -- trigger_type ENUM enforces valid values.
 -- CHECK constraints enforce FK exclusivity and required_count rules per type.
+
 CREATE TABLE if not exists badge (
     badge_id INT AUTO_INCREMENT PRIMARY KEY COMMENT 'Primary key',
     badge_name VARCHAR(255) NOT NULL COMMENT 'Badge name',
@@ -98,12 +99,11 @@ CREATE TABLE if not exists badge (
     trigger_type ENUM(
         'task_completion', -- completing a specific task
         'series_completion', -- completing every task in a series
-        'global_count', -- completing a number of tasks in total
+        'global_count' -- completing a number of tasks in total
     ) NOT NULL COMMENT 'Unlock trigger',
-    target_task_id INT NULL COMMENT 'FK to task (task_completion only)',
+    target_task_id INT NULL COMMENT 'FK to task   (task_completion only)',
     target_series_id INT NULL COMMENT 'FK to series (series_completion only)',
-    required_count INT NULL COMMENT 'Threshold (global_count only)',
-    badge_name VARCHAR(255) NOT NULL COMMENT 'Badge name',
+    required_count INT NULL COMMENT 'Threshold    (global_count only)',
     CONSTRAINT fk_badge_task FOREIGN KEY (target_task_id) REFERENCES task (task_id),
     CONSTRAINT fk_badge_series FOREIGN KEY (target_series_id) REFERENCES series (series_id),
     CONSTRAINT chk_badge_task_completion CHECK (
