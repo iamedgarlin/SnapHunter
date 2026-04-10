@@ -14,6 +14,19 @@ public class TaskDTO {
     public TaskDTO() {
     }
 
+    public TaskDTO(Integer taskID, Integer seriesID, String taskName,
+               String taskDescription, Double latitude, Double longitude,
+               Integer baseDifficulty, Integer rewardPoint) {
+    this.taskID = taskID;
+    this.seriesID = seriesID;
+    this.taskName = taskName;
+    this.taskDescription = taskDescription;
+    this.latitude = latitude;
+    this.longitude = longitude;
+    this.baseDifficulty = baseDifficulty;
+    this.rewardPoint = rewardPoint;
+    }
+
     public Integer getTaskID() {
         return taskID;
     }
