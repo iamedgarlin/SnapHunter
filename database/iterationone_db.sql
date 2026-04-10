@@ -39,7 +39,6 @@ CREATE TABLE if not exists task (
     is_active             BOOLEAN        NOT NULL DEFAULT TRUE      COMMENT 'Visible to users',
     create_time           DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT 'Record creation time',
 
-    SPATIAL INDEX idx_task_st_point (st_point),
     CONSTRAINT fk_task_series
         FOREIGN KEY (series_id) REFERENCES series(series_id),
     CONSTRAINT chk_task_type_non_empty
