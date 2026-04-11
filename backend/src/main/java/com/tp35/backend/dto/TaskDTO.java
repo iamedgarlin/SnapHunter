@@ -2,8 +2,8 @@ package com.tp35.backend.dto;
 
 public class TaskDTO {
 
-    private Integer taskID;
-    private Integer seriesID;
+    private Integer taskId;
+    private Integer seriesId;
     private String taskName;
     private String taskDescription;
     private Double latitude;
@@ -14,11 +14,11 @@ public class TaskDTO {
     public TaskDTO() {
     }
 
-    public TaskDTO(Integer taskID, Integer seriesID, String taskName,
+    public TaskDTO(Integer taskId, Integer seriesId, String taskName,
                String taskDescription, Double latitude, Double longitude,
                Integer baseDifficulty, Integer rewardPoint) {
-    this.taskID = taskID;
-    this.seriesID = seriesID;
+    this.taskId = taskId;
+    this.seriesId = seriesId;
     this.taskName = taskName;
     this.taskDescription = taskDescription;
     this.latitude = latitude;
@@ -27,20 +27,20 @@ public class TaskDTO {
     this.rewardPoint = rewardPoint;
     }
 
-    public Integer getTaskID() {
-        return taskID;
+    public Integer getTaskId() {
+        return taskId;
     }
 
-    public void setTaskID(Integer taskID) {
-        this.taskID = taskID;
+    public void setTaskId(Integer taskId) {
+        this.taskId = taskId;
     }
 
-    public Integer getSeriesID() {
-        return seriesID;
+    public Integer getSeriesId() {
+        return seriesId;
     }
 
-    public void setSeriesID(Integer seriesID) {
-        this.seriesID = seriesID;
+    public void setSeriesId(Integer seriesId) {
+        this.seriesId = seriesId;
     }
 
     public String getTaskName() {

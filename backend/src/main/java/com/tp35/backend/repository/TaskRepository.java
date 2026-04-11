@@ -35,8 +35,8 @@ public class TaskRepository {
 
         return jdbcTemplate.query(sql, (rs, rowNum) -> {
             TaskDTO task = new TaskDTO();
-            task.setTaskID(rs.getInt("task_id"));
-            task.setSeriesID(rs.getInt("series_id"));
+            task.setTaskId(rs.getInt("task_id"));
+            task.setSeriesId(rs.getInt("series_id"));
             task.setTaskName(rs.getString("task_name"));
             task.setTaskDescription(rs.getString("task_description"));
             task.setLatitude(rs.getDouble("latitude"));
