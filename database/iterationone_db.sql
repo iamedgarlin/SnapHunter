@@ -145,3 +145,9 @@ CREATE TABLE if not exists user_badge (
     CONSTRAINT fk_ub_badge FOREIGN KEY (badge_id) REFERENCES badge (badge_id),
     CONSTRAINT uk_ub_once UNIQUE (user_id, badge_id)
 );
+
+-- insert series data "Nature": 1,"Urban": 2, "Art": 3.
+INSERT INTO series (series_name, description) VALUES
+('Nature', 'Tasks related to natural environments, such as flowers, trees, rivers, and wildlife.'),
+('Urban', 'Tasks related to urban environments, such as city streets, buildings, and public spaces.'),
+('Art', 'Tasks related to artworks and cultural landmarks, such as murals, sculptures, and historical sites.');
