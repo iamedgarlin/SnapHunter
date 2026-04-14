@@ -51,7 +51,7 @@ const showTabBar = computed(() =>
 
 const tabs = [
   { path: '/home',    label: 'Home',    icon: PhHouseSimple },
-  { path: '/tasks',   label: 'Tasks',   icon: PhCompass },
+  { path: '/tasks',   label: 'Quests',  icon: PhCompass },
   { path: '/map',     label: 'Map',     icon: PhMapTrifold },
   { path: '/badges',  label: 'Badges',  icon: PhMedal },
   { path: '/profile', label: 'Profile', icon: PhUser },
