@@ -153,6 +153,9 @@ def clean_landmarks_tasks(
         }
     )
 
+    # change the Nature-related landmark tasks to inactive
+    task_df.loc[task_df["theme"] == "Nature", "is_active"] = 0
+
     task_df = task_df.dropna(subset=["series_id", "task_name", "latitude", "longitude"])
 
     task_df = add_suburb_location_label(task_df, locality_shp_path)
