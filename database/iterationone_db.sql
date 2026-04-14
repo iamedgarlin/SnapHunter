@@ -151,16 +151,3 @@ INSERT INTO series (series_name, description) VALUES
 ('Nature', 'Tasks related to natural environments, such as flowers, trees, rivers, and wildlife.'),
 ('Urban', 'Tasks related to urban environments, such as city streets, buildings, and public spaces.'),
 ('Art', 'Tasks related to artworks and cultural landmarks, such as murals, sculptures, and historical sites.');
-
--- Insert sample user data for testing
-INSERT INTO user (firebase_uid, username, total_point) VALUES
-('uid_12345', 'Test_user1', 10),
-('uid_67890', 'Test_user2', 0);
-
--- Insert sample user_task data for testing
-INSERT INTO user_task (user_id, task_id, status, complete_time) VALUES
-(1, 1, TRUE, '2024-01-01 10:00:00'),
-(1, 2, FALSE, NULL),
-(2, 1, FALSE, NULL),
-(2, 3, TRUE, '2024-01-02 15:30:00');
-
