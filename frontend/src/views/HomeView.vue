@@ -110,7 +110,7 @@
         </div>
       </div>
 
-      <!-- Task card: random if no series selected, series tasks if selected -->
+      <!-- Random task card -->
       <template v-if="!selectedSeriesId">
         <div class="card-game" style="border-color: #bbf7d0; border-bottom-color: #34d399">
           <div class="flex items-center justify-between mb-3">
@@ -129,12 +129,10 @@
               </button>
             </div>
           </div>
-
           <div v-if="loadingTasks" class="flex items-center justify-center py-6 gap-2">
             <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
             <span class="text-sm font-bold text-gray-400">Loading tasks...</span>
           </div>
-
           <div v-else class="flex flex-col gap-2">
             <div v-for="task in randomTasks" :key="task.taskId"
               class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
@@ -172,24 +170,25 @@
               <component :is="currentSeries?.icon" :size="18" weight="duotone" :color="currentSeries?.color" />
               <p class="text-base font-black text-gray-800">{{ currentSeries?.name }} Tasks</p>
             </div>
-            <button @click="selectedSeriesId = null"
+            <button @click="clearSeries"
               class="w-7 h-7 rounded-xl flex items-center justify-center"
               style="background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 2px solid #cbd5e1">
               <PhX :size="14" weight="bold" color="#94a3b8" />
             </button>
           </div>
-
-          <div class="flex flex-col gap-2">
-            <div v-for="task in seriesTasksMock" :key="task.taskId"
+          <div v-if="loadingSeriesTasks" class="flex items-center justify-center py-6 gap-2">
+            <PhSpinner :size="20" weight="duotone" :color="currentSeries?.color" class="animate-spin" />
+            <span class="text-sm font-bold text-gray-400">Loading tasks...</span>
+          </div>
+          <div v-else class="flex flex-col gap-2">
+            <div v-for="task in seriesTasks" :key="task.taskId"
               class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
               :style="task.done
                 ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}`
                 : 'background: #f8fafc; border: 2px solid #e2e8f0'"
               @click="openConfirm(task)">
               <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                :style="task.done
-                  ? `background: ${currentSeries?.iconBg}`
-                  : 'background: #f1f5f9'">
+                :style="task.done ? `background: ${currentSeries?.iconBg}` : 'background: #f1f5f9'">
                 <PhCamera :size="18" weight="duotone"
                   :color="task.done ? currentSeries?.color : '#94a3b8'" />
               </div>
@@ -212,58 +211,11 @@
         </div>
       </template>
 
-      <!-- Streak -->
-      <div class="card-game">
-        <div class="flex items-center justify-between mb-3">
-          <div class="flex items-center gap-1.5">
-            <PhFlame :size="18" weight="duotone" color="#f59e0b" />
-            <p class="text-sm font-black text-gray-800">Streak</p>
-          </div>
-          <span class="text-xs font-black text-amber-500">5 days!</span>
-        </div>
-        <div class="flex gap-2">
-          <div v-for="(day, i) in weekDays" :key="i" class="flex-1 flex flex-col items-center gap-1">
-            <div class="streak-dot"
-              :style="day.done
-                ? 'background:#f59e0b; border-color:#d97706'
-                : 'background:#e2e8f0; border-color:#cbd5e1'">
-            </div>
-            <span class="text-xs font-bold" :style="day.done ? 'color:#d97706' : 'color:#94a3b8'">
-              {{ day.label }}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent badges -->
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-1.5">
-            <PhMedal :size="16" weight="duotone" color="#f59e0b" />
-            <p class="text-sm font-black text-gray-700">Recent Badges</p>
-          </div>
-          <button class="text-xs font-black text-emerald-500">See all →</button>
-        </div>
-        <div class="flex gap-3">
-          <div v-for="badge in recentBadges" :key="badge.name"
-            class="flex-1 flex flex-col items-center gap-2 p-3 rounded-2xl"
-            style="background: white; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1">
-            <component :is="badge.icon" :size="32" weight="duotone" :color="badge.color" />
-            <p class="text-xs font-black text-gray-700 text-center">{{ badge.name }}</p>
-          </div>
-        </div>
-      </div>
-
     </div>
 
     <!-- Hidden file input -->
-    <input
-      ref="fileInput"
-      type="file"
-      accept="image/*"
-      capture="environment"
-      class="hidden"
-      @change="handlePhotoCapture" />
+    <input ref="fileInput" type="file" accept="image/*" capture="environment"
+      class="hidden" @change="handlePhotoCapture" />
 
     <!-- Confirm modal -->
     <div v-if="showModal"
@@ -282,21 +234,15 @@
             <p class="text-xs font-semibold text-gray-400">{{ selectedTask?.taskDescription }}</p>
           </div>
         </div>
-
-        <!-- Photo preview -->
         <div v-if="capturedPhoto"
           class="w-full rounded-2xl overflow-hidden"
           style="border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399">
           <img :src="capturedPhoto" class="w-full object-cover" style="max-height: 200px" />
         </div>
-
-        <!-- Evaluating -->
         <div v-if="evaluating" class="flex items-center justify-center gap-2 py-2">
           <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
           <span class="text-sm font-bold text-gray-400">Checking your photo...</span>
         </div>
-
-        <!-- Result -->
         <div v-if="evalResult" class="rounded-2xl p-3"
           :style="evalResult.matched
             ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399'
@@ -311,7 +257,6 @@
           </div>
           <p class="text-xs font-semibold text-gray-500">{{ evalResult.reason }}</p>
         </div>
-
         <div class="bg-amber-50 rounded-2xl p-3 flex items-center gap-2"
           style="border: 2px solid #fde68a; border-bottom: 3px solid #fbbf24">
           <PhLightning :size="20" weight="duotone" color="#f59e0b" />
@@ -319,46 +264,40 @@
             Complete this task to earn +{{ selectedTask?.rewardPoint }} XP!
           </p>
         </div>
-
         <button v-if="!evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
           @click="triggerCamera">
           <PhCamera :size="20" weight="duotone" color="white" />
           {{ capturedPhoto ? 'Retake Photo' : 'Take a Photo!' }}
         </button>
-
         <button v-if="evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
           @click="completeTask">
           <PhCheckCircle :size="20" weight="duotone" color="white" />
           Awesome! Claim XP!
         </button>
-
         <button class="text-sm font-bold text-gray-400 py-2" @click="closeConfirm">
           Not yet
         </button>
       </div>
     </div>
 
-    <!-- Backdrop to close dropdown -->
-    <div v-if="showSeriesDropdown"
-      class="fixed inset-0 z-10"
-      @click="showSeriesDropdown = false" />
+    <!-- Backdrop -->
+    <div v-if="showSeriesDropdown" class="fixed inset-0 z-10" @click="showSeriesDropdown = false" />
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
 import {
   PhSun, PhCloud, PhCloudRain, PhPawPrint, PhCompass, PhLightning,
-  PhTarget, PhFlame, PhMedal, PhCheckCircle, PhXCircle,
+  PhTarget, PhCheckCircle, PhXCircle,
   PhCamera, PhShuffle, PhStarFour, PhArrowsClockwise, PhSpinner,
-  PhTree, PhBuildings, PhPaintBrush, PhSneaker, PhCheck,
-  PhCaretDown, PhX
+  PhTree, PhBuildings, PhPaintBrush, PhCheck, PhCaretDown, PhX
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -371,7 +310,9 @@ const mode = ref('random')
 const showSeriesDropdown = ref(false)
 const selectedSeriesId = ref(null)
 const randomTasks = ref([])
+const seriesTasks = ref([])
 const loadingTasks = ref(false)
+const loadingSeriesTasks = ref(false)
 const showModal = ref(false)
 const selectedTask = ref(null)
 const fileInput = ref(null)
@@ -420,12 +361,6 @@ const currentSeries = computed(() =>
   seriesList.find(s => s.id === selectedSeriesId.value)
 )
 
-const seriesTasksMock = ref([
-  { taskId: 101, taskName: 'Find a leaf',  taskDescription: 'Pick up a fallen leaf',      rewardPoint: 15, done: false },
-  { taskId: 102, taskName: 'Spot a bird',  taskDescription: 'Find any bird outside',       rewardPoint: 20, done: false },
-  { taskId: 103, taskName: 'Touch a tree', taskDescription: 'Find and touch a tree trunk', rewardPoint: 10, done: true  },
-])
-
 async function fetchRandomTasks() {
   loadingTasks.value = true
   try {
@@ -435,6 +370,20 @@ async function fetchRandomTasks() {
     console.error('Failed to fetch tasks:', e)
   } finally {
     loadingTasks.value = false
+  }
+}
+
+async function fetchSeriesTasks(seriesId) {
+  loadingSeriesTasks.value = true
+  try {
+    const res = await axios.get(`${BASE_URL}/api/tasks/series/random`, {
+      params: { seriesId }
+    })
+    seriesTasks.value = res.data.map(t => ({ ...t, done: false }))
+  } catch (e) {
+    console.error('Failed to fetch series tasks:', e)
+  } finally {
+    loadingSeriesTasks.value = false
   }
 }
 
@@ -450,12 +399,19 @@ function switchMode(newMode) {
     mode.value = 'random'
     showSeriesDropdown.value = false
     selectedSeriesId.value = null
+    seriesTasks.value = []
   }
 }
 
 function selectSeries(id) {
   selectedSeriesId.value = id
   showSeriesDropdown.value = false
+  fetchSeriesTasks(id)
+}
+
+function clearSeries() {
+  selectedSeriesId.value = null
+  seriesTasks.value = []
 }
 
 function openConfirm(task) {
@@ -482,16 +438,13 @@ function triggerCamera() {
 async function handlePhotoCapture(event) {
   const file = event.target.files?.[0]
   if (!file) return
-
   capturedPhoto.value = URL.createObjectURL(file)
   evaluating.value = true
   evalResult.value = null
-
   try {
     const formData = new FormData()
     formData.append('taskId', selectedTask.value.taskId)
     formData.append('file', file)
-
     const res = await axios.post(`${BASE_URL}/api/tasks/evaluate`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -506,7 +459,7 @@ async function handlePhotoCapture(event) {
 
 function completeTask() {
   const task = randomTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
-    || seriesTasksMock.value.find(t => t.taskId === selectedTask.value?.taskId)
+    || seriesTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
   if (task) task.done = true
   closeConfirm()
 }
@@ -515,20 +468,4 @@ onMounted(() => {
   if (!weather.temp) weather.fetchWeather()
   fetchRandomTasks()
 })
-
-const weekDays = [
-  { label: 'M', done: true },
-  { label: 'T', done: true },
-  { label: 'W', done: true },
-  { label: 'T', done: true },
-  { label: 'F', done: true },
-  { label: 'S', done: false },
-  { label: 'S', done: false },
-]
-
-const recentBadges = [
-  { name: 'First Step', icon: PhSneaker, color: '#10b981' },
-  { name: 'Explorer',   icon: PhCompass, color: '#f59e0b' },
-  { name: 'Nature Eye', icon: PhTree,    color: '#16a34a' },
-]
 </script>

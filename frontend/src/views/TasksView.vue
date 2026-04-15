@@ -2,111 +2,130 @@
   <div class="min-h-full pb-6" style="background: #f0fdf4; font-family: var(--font-game)">
 
     <!-- Header -->
-    <div class="relative overflow-hidden px-4 pt-6 pb-4"
+    <div class="relative overflow-hidden px-4 pt-6 pb-5"
       style="background: linear-gradient(160deg, #bbf7d0, #6ee7b7); border-radius: 0 0 32px 32px; border-bottom: 4px solid #34d399">
       <h1 class="text-2xl font-black text-emerald-900">Series Gallery</h1>
       <p class="text-xs font-bold text-emerald-700 mt-1">Complete a series to unlock a badge!</p>
     </div>
 
-    <div class="flex flex-col gap-6 mt-4 pb-4">
+    <div class="px-4 flex flex-col gap-4 mt-4 pb-4">
 
       <div v-if="loadingTasks" class="flex items-center justify-center py-12 gap-2">
         <PhSpinner :size="24" weight="duotone" color="#10b981" class="animate-spin" />
         <span class="text-sm font-bold text-gray-400">Loading series...</span>
       </div>
 
-      <!-- Each series section -->
-      <div v-else v-for="series in seriesList" :key="series.id">
+      <!-- Series cards (stamp style) -->
+      <div v-else v-for="series in seriesList" :key="series.id"
+        class="rounded-3xl overflow-hidden"
+        :style="`border: 2.5px solid ${series.borderColor}; border-bottom: 5px solid ${series.borderBottomColor}`">
 
-        <!-- Series title row -->
-        <div class="px-4 flex items-center justify-between mb-3">
-          <div class="flex items-center gap-2">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center"
-              :style="`background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`">
-              <component :is="series.icon" :size="22" weight="duotone" :color="series.color" />
+        <!-- Card header -->
+        <div class="px-4 pt-4 pb-3 flex items-center justify-between"
+          :style="`background: ${series.iconBg}`">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style="background: white; border-bottom: 3px solid"
+              :style="`border-color: ${series.borderColor}; border-bottom-color: ${series.borderBottomColor}`">
+              <component :is="series.icon" :size="26" weight="duotone" :color="series.color" />
             </div>
             <div>
               <div class="flex items-center gap-1.5">
-                <p class="text-sm font-black text-gray-800">{{ series.name }}</p>
-                <PhMedal v-if="seriesCompleted(series.id)" :size="14" weight="duotone" color="#f59e0b" />
+                <p class="text-base font-black" :style="`color: ${series.color}`">{{ series.name }}</p>
+                <PhSeal v-if="seriesCompleted(series.id)" :size="16" weight="duotone" color="#f59e0b" />
               </div>
-              <p class="text-xs font-semibold text-gray-400">{{ series.description }}</p>
+              <p class="text-xs font-semibold text-gray-500">{{ series.description }}</p>
             </div>
           </div>
-          <span class="text-xs font-black" :style="`color: ${series.color}`">
-            {{ seriesCompletedCount(series.id) }}/{{ getSeriesTasks(series.id).length }}
-          </span>
+          <div class="flex flex-col items-end gap-0.5">
+            <span class="text-sm font-black" :style="`color: ${series.color}`">
+              {{ seriesCompletedCount(series.id) }}/{{ getSeriesTasks(series.id).length }}
+            </span>
+          </div>
         </div>
 
         <!-- Progress bar -->
-        <div class="px-4 mb-3">
-          <div class="h-3 rounded-full overflow-hidden border-2"
-            :style="`background: #f1f5f9; border-color: ${series.borderColor}`">
+        <div class="px-4 py-2" :style="`background: ${series.iconBg}`">
+          <div class="h-2.5 rounded-full overflow-hidden"
+            style="background: rgba(255,255,255,0.6)">
             <div class="h-full rounded-full transition-all duration-500"
               :style="`width: ${seriesProgress(series.id)}%; background: ${series.color}`">
             </div>
           </div>
-          <p class="text-xs font-semibold text-gray-400 mt-1">
-            <template v-if="seriesCompleted(series.id)">
-              Series complete! Badge unlocked!
-            </template>
-            <template v-else>
-              {{ getSeriesTasks(series.id).length - seriesCompletedCount(series.id) }} tasks to unlock badge
-            </template>
-          </p>
         </div>
 
-        <!-- Horizontal scrollable task cards -->
-        <div class="flex gap-3 overflow-x-auto px-4 pb-2"
-          style="scrollbar-width: none; -ms-overflow-style: none;">
-          <div v-for="task in getSeriesTasks(series.id)" :key="task.taskId"
-            class="flex-shrink-0 flex flex-col gap-2 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all"
-            style="width: 160px;"
-            :style="task.done
-              ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`
-              : 'background: white; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
-            @click="openConfirm(task, series)">
-
-            <!-- Task icon -->
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
-              :style="task.done
-                ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}`
-                : 'background: #f8fafc; border: 2px solid #e2e8f0'">
-              <PhCamera :size="24" weight="duotone"
-                :color="task.done ? series.color : '#94a3b8'" />
-            </div>
-
-            <!-- Task name -->
-            <p class="text-sm font-black leading-tight"
-              :style="task.done ? `color: ${series.color}` : 'color: #1f2937'">
-              {{ task.taskName }}
-            </p>
-
-            <!-- Task description -->
-            <p class="text-xs font-semibold text-gray-400 leading-tight">
-              {{ task.taskDescription }}
-            </p>
-
-            <!-- XP + status -->
-            <div class="flex items-center justify-between mt-auto">
-              <div class="flex items-center gap-0.5">
-                <PhLightning :size="12" weight="duotone" color="#f59e0b" />
-                <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
-              </div>
-              <PhCheckCircle v-if="task.done" :size="18" weight="duotone" :color="series.color" />
-              <PhCamera v-else :size="16" weight="duotone" color="#cbd5e1" />
-            </div>
+        <!-- Dashed separator (stamp perforation effect) -->
+        <div class="flex items-center px-2" :style="`background: ${series.iconBg}`">
+          <div class="flex-1 border-t-2 border-dashed" :style="`border-color: ${series.borderColor}`"></div>
+          <div class="mx-2">
+            <PhMedal :size="18" weight="duotone"
+              :color="seriesCompleted(series.id) ? '#f59e0b' : series.borderColor" />
           </div>
+          <div class="flex-1 border-t-2 border-dashed" :style="`border-color: ${series.borderColor}`"></div>
+        </div>
 
-          <!-- Locked badge card at end -->
-          <div class="flex-shrink-0 flex flex-col items-center justify-center gap-2 p-4 rounded-2xl"
-            style="width: 120px; background: #f8fafc; border: 2px dashed #e2e8f0;">
-            <PhMedal :size="32" weight="duotone"
-              :color="seriesCompleted(series.id) ? '#f59e0b' : '#cbd5e1'" />
-            <p class="text-xs font-black text-center"
-              :style="seriesCompleted(series.id) ? 'color: #f59e0b' : 'color: #94a3b8'">
-              {{ seriesCompleted(series.id) ? 'Badge unlocked!' : 'Complete all to unlock!' }}
-            </p>
+        <!-- Task cards horizontal scroll -->
+        <div class="bg-white px-4 pt-3 pb-4">
+          <div v-if="!getSeriesTasks(series.id).length"
+            class="flex items-center justify-center py-6 text-xs font-semibold text-gray-400">
+            No tasks loaded yet
+          </div>
+          <div v-else class="flex gap-3 overflow-x-auto pb-1"
+            style="scrollbar-width: none; -ms-overflow-style: none;">
+
+            <div v-for="task in getSeriesTasks(series.id)" :key="task.taskId"
+              class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden"
+              style="width: 140px; height: 160px;"
+              :style="task.done
+                ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`
+                : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
+              @click="openConfirm(task, series)">
+
+              <!-- Icon area -->
+              <div class="flex items-center justify-center pt-3 pb-2">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  :style="task.done
+                    ? `background: white; border: 2px solid ${series.borderColor}`
+                    : 'background: white; border: 2px solid #e2e8f0'">
+                  <PhCamera :size="20" weight="duotone"
+                    :color="task.done ? series.color : '#94a3b8'" />
+                </div>
+              </div>
+
+              <!-- Task name -->
+              <div class="px-3 flex-1 flex flex-col justify-between pb-3">
+                <div>
+                  <p class="text-xs font-black leading-tight overflow-hidden"
+                    style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+                    :style="task.done ? `color: ${series.color}` : 'color: #1f2937'">
+                    {{ task.taskName }}
+                  </p>
+                  <p class="text-xs font-semibold text-gray-400 mt-1 overflow-hidden"
+                    style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
+                    {{ task.taskDescription }}
+                  </p>
+                </div>
+                <div class="flex items-center justify-between mt-2">
+                  <div class="flex items-center gap-0.5">
+                    <PhLightning :size="11" weight="duotone" color="#f59e0b" />
+                    <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+                  </div>
+                  <PhCheckCircle v-if="task.done" :size="16" weight="duotone" :color="series.color" />
+                  <PhCamera v-else :size="14" weight="duotone" color="#cbd5e1" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Badge unlock card -->
+            <div class="flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl"
+              style="width: 100px; height: 160px; border: 2px dashed #e2e8f0; background: #f8fafc">
+              <PhMedal :size="28" weight="duotone"
+                :color="seriesCompleted(series.id) ? '#f59e0b' : '#cbd5e1'" />
+              <p class="text-xs font-black text-center px-2 leading-tight"
+                :style="seriesCompleted(series.id) ? 'color: #f59e0b' : 'color: #94a3b8'">
+                {{ seriesCompleted(series.id) ? 'Badge unlocked!' : 'Complete all!' }}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -114,46 +133,39 @@
     </div>
 
     <!-- Hidden file input -->
-    <input
-      ref="fileInput"
-      type="file"
-      accept="image/*"
-      capture="environment"
-      class="hidden"
-      @change="handlePhotoCapture" />
+    <input ref="fileInput" type="file" accept="image/*" capture="environment"
+      class="hidden" @change="handlePhotoCapture" />
 
-    <!-- Confirm modal -->
+    <!-- Task detail + confirm modal -->
     <div v-if="showModal"
       class="fixed inset-0 flex items-end justify-center z-50"
       style="background: rgba(0,0,0,0.4)"
       @click.self="closeConfirm">
       <div class="w-full max-w-md bg-white rounded-t-3xl p-6 flex flex-col gap-4"
         :style="`border-top: 4px solid ${selectedSeries?.borderBottomColor || '#34d399'}`">
-        <div class="flex items-center gap-3">
-          <div class="w-14 h-14 rounded-2xl flex items-center justify-center"
+
+        <div class="flex items-start gap-3">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
             :style="`background: ${selectedSeries?.iconBg}; border: 2px solid ${selectedSeries?.borderColor}; border-bottom: 3px solid ${selectedSeries?.borderBottomColor}`">
             <PhCamera :size="28" weight="duotone" :color="selectedSeries?.color || '#16a34a'" />
           </div>
-          <div>
+          <div class="flex-1">
             <p class="text-lg font-black text-gray-800">{{ selectedTask?.taskName }}</p>
-            <p class="text-xs font-semibold text-gray-400">{{ selectedTask?.taskDescription }}</p>
+            <p class="text-xs font-semibold text-gray-400 mt-0.5 leading-relaxed">{{ selectedTask?.taskDescription }}</p>
           </div>
         </div>
 
-        <!-- Photo preview -->
         <div v-if="capturedPhoto"
           class="w-full rounded-2xl overflow-hidden"
           style="border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399">
           <img :src="capturedPhoto" class="w-full object-cover" style="max-height: 200px" />
         </div>
 
-        <!-- Evaluating -->
         <div v-if="evaluating" class="flex items-center justify-center gap-2 py-2">
           <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
           <span class="text-sm font-bold text-gray-400">Checking your photo...</span>
         </div>
 
-        <!-- Result -->
         <div v-if="evalResult" class="rounded-2xl p-3"
           :style="evalResult.matched
             ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399'
@@ -205,7 +217,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import {
   PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
-  PhCamera, PhMedal, PhTree, PhBuildings, PhPaintBrush
+  PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -310,16 +322,13 @@ function triggerCamera() {
 async function handlePhotoCapture(event) {
   const file = event.target.files?.[0]
   if (!file) return
-
   capturedPhoto.value = URL.createObjectURL(file)
   evaluating.value = true
   evalResult.value = null
-
   try {
     const formData = new FormData()
     formData.append('taskId', selectedTask.value.taskId)
     formData.append('file', file)
-
     const res = await axios.post(`${BASE_URL}/api/tasks/evaluate`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
