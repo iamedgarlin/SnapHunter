@@ -1,11 +1,9 @@
 <template>
   <div class="min-h-full flex flex-col pb-10" style="background: #f0fdf4; font-family: var(--font-game)">
 
-    <!-- Hero with login button inside -->
+    <!-- Hero -->
     <div class="relative overflow-hidden px-6 pt-14 pb-10 flex flex-col items-center text-center"
       style="background: linear-gradient(160deg, #bbf7d0, #6ee7b7); border-radius: 0 0 40px 40px; border-bottom: 4px solid #34d399">
-
-      <!-- Animated floating circles -->
       <div class="absolute inset-0 overflow-hidden pointer-events-none">
         <div class="float-circle" style="width:80px;height:80px;top:10%;left:5%;animation-delay:0s;opacity:0.15"></div>
         <div class="float-circle" style="width:50px;height:50px;top:20%;right:8%;animation-delay:0.8s;opacity:0.2"></div>
@@ -37,7 +35,7 @@
 
     <div class="px-5 flex flex-col gap-4 mt-5">
 
-      <!-- Did you know (clickable) -->
+      <!-- Did you know — updated with AU data -->
       <div @click="router.push('/awareness')"
         class="card-game cursor-pointer active:scale-95 transition-all"
         style="border-color: #bfdbfe; border-bottom-color: #93c5fd">
@@ -51,22 +49,22 @@
         <div class="flex gap-3">
           <div class="flex-1 rounded-2xl p-3 text-center"
             style="background: #eff6ff; border: 2px solid #bfdbfe; border-bottom: 3px solid #93c5fd">
-            <p class="text-2xl font-black text-blue-600">65%</p>
-            <p class="text-xs font-bold text-blue-400 mt-0.5">kids have eye strain</p>
+            <p class="text-2xl font-black text-blue-600">6.34h</p>
+            <p class="text-xs font-bold text-blue-400 mt-0.5">avg screen time/day (AU kids)</p>
           </div>
           <div class="flex-1 rounded-2xl p-3 text-center"
             style="background: #faf5ff; border: 2px solid #e9d5ff; border-bottom: 3px solid #d8b4fe">
-            <p class="text-2xl font-black text-purple-600">4h+</p>
-            <p class="text-xs font-bold text-purple-400 mt-0.5">avg screen time/day</p>
+            <p class="text-2xl font-black text-purple-600">+21%</p>
+            <p class="text-xs font-bold text-purple-400 mt-0.5">myopia risk per extra hour</p>
           </div>
           <div class="flex-1 rounded-2xl p-3 text-center"
             style="background: #fff7ed; border: 2px solid #fed7aa; border-bottom: 3px solid #fdba74">
-            <p class="text-2xl font-black text-orange-500">20°</p>
-            <p class="text-xs font-bold text-orange-400 mt-0.5">20-20-20 rule</p>
+            <p class="text-2xl font-black text-orange-500">24cm</p>
+            <p class="text-xs font-bold text-orange-400 mt-0.5">avg screen distance</p>
           </div>
         </div>
         <p class="text-xs font-semibold text-blue-400 text-center mt-3">
-          Tap to learn more about eye health
+          Tap to watch our fun Eye Care animations! 👉
         </p>
       </div>
 
@@ -79,9 +77,7 @@
         <div class="flex flex-col gap-3">
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-white text-sm"
-              style="background: linear-gradient(135deg, #34d399, #10b981); border-bottom: 3px solid #065f46">
-              1
-            </div>
+              style="background: linear-gradient(135deg, #34d399, #10b981); border-bottom: 3px solid #065f46">1</div>
             <div>
               <p class="text-sm font-black text-gray-800">Get daily missions</p>
               <p class="text-xs font-semibold text-gray-400">New outdoor tasks every day</p>
@@ -89,9 +85,7 @@
           </div>
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-white text-sm"
-              style="background: linear-gradient(135deg, #fbbf24, #f59e0b); border-bottom: 3px solid #b45309">
-              2
-            </div>
+              style="background: linear-gradient(135deg, #fbbf24, #f59e0b); border-bottom: 3px solid #b45309">2</div>
             <div>
               <p class="text-sm font-black text-gray-800">Go outside and snap!</p>
               <p class="text-xs font-semibold text-gray-400">Complete tasks, take photos</p>
@@ -99,9 +93,7 @@
           </div>
           <div class="flex items-center gap-3">
             <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-white text-sm"
-              style="background: linear-gradient(135deg, #f87171, #ef4444); border-bottom: 3px solid #991b1b">
-              3
-            </div>
+              style="background: linear-gradient(135deg, #f87171, #ef4444); border-bottom: 3px solid #991b1b">3</div>
             <div>
               <p class="text-sm font-black text-gray-800">Earn XP and badges!</p>
               <p class="text-xs font-semibold text-gray-400">Level up and unlock rewards</p>
@@ -127,7 +119,6 @@
       </div>
 
     </div>
-
   </div>
 </template>
 
