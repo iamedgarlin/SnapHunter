@@ -47,7 +47,7 @@ public class TaskRepository {
         });
     }
 
-    public List<TaskDTO> findRandomTasksBySeries(Integer seriesId) {
+    public List<TaskDTO> findTasksBySeries(Integer seriesId) {
         String sql = """
             SELECT
                 task_id,
@@ -60,8 +60,7 @@ public class TaskRepository {
                 reward_point
             FROM task
             WHERE series_id = ?
-            ORDER BY RAND()
-            LIMIT 3
+            and is_active = true
             """;
         
         return jdbcTemplate.query(sql, (rs, rowNum) -> {
