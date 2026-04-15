@@ -5,6 +5,7 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.tp35.backend.dto.TaskDTO;
@@ -25,4 +26,11 @@ public class TaskController {
         List<TaskDTO> tasks = taskService.getRandomActiveTasks();
         return ResponseEntity.ok(tasks);
     }
+
+    @GetMapping("/series/random")
+    public ResponseEntity<List<TaskDTO>> getRandomTasksBySeries(
+        @RequestParam Integer seriesId
+) {
+        return ResponseEntity.ok(taskService.getRandomTasksBySeries(seriesId));
+}
 }
