@@ -1,7 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
-import { getAuth } from 'firebase/auth'
 import App from './App.vue'
 import './style.css'
 
@@ -39,15 +38,20 @@ app.use(router)
 
 import { useAuthStore } from './stores/auth'
 
+const authStore = useAuthStore()
+authStore.init()
+
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
 
   if (auth.loading) {
     await new Promise((resolve) => {
-      const unsubscribe = getAuth().onAuthStateChanged(() => {
-        unsubscribe()
-        resolve()
-      })
+      const stop = setInterval(() => {
+        if (!auth.loading) {
+          clearInterval(stop)
+          resolve()
+        }
+      }, 50)
     })
   }
 
