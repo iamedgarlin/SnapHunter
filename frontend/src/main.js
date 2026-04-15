@@ -12,55 +12,48 @@ import MapView from './views/MapView.vue'
 import BadgesView from './views/BadgesView.vue'
 import ProfileView from './views/ProfileView.vue'
 
+import { useAuthStore } from './stores/auth'
+
 const protectedRoutes = ['/home', '/tasks', '/map', '/badges', '/profile']
 
 const router = createRouter({
   history: createWebHistory(),
-  scrollBehavior() {
-    return { top: 0 }
-  },
   routes: [
-    { path: '/',            redirect: '/welcome' },
-    { path: '/welcome',     component: WelcomeView },
-    { path: '/awareness',   component: AwarenessView },
-    { path: '/home',        component: HomeView },
-    { path: '/tasks',       component: TasksView },
-    { path: '/map',         component: MapView },
-    { path: '/badges',      component: BadgesView },
-    { path: '/profile',     component: ProfileView },
+    { path: '/', redirect: '/welcome' },
+    { path: '/welcome', component: WelcomeView },
+    { path: '/awareness', component: AwarenessView },
+    { path: '/home', component: HomeView },
+    { path: '/tasks', component: TasksView },
+    { path: '/map', component: MapView },
+    { path: '/badges', component: BadgesView },
+    { path: '/profile', component: ProfileView },
   ]
 })
 
-const pinia = createPinia()
-const app = createApp(App)
-app.use(pinia)
-app.use(router)
-
-import { useAuthStore } from './stores/auth'
-
-const authStore = useAuthStore()
-authStore.init()
-
-router.beforeEach(async (to) => {
+router.beforeEach((to) => {
   const auth = useAuthStore()
-
-  if (auth.loading) {
-    await new Promise((resolve) => {
-      const stop = setInterval(() => {
-        if (!auth.loading) {
-          clearInterval(stop)
-          resolve()
-        }
-      }, 50)
-    })
-  }
 
   if (protectedRoutes.includes(to.path) && !auth.isLoggedIn) {
     return '/welcome'
   }
+
   if (to.path === '/welcome' && auth.isLoggedIn) {
     return '/home'
   }
 })
 
-app.mount('#app')
+async function bootstrap() {
+  const app = createApp(App)
+  const pinia = createPinia()
+
+  app.use(pinia)
+
+  const authStore = useAuthStore()
+
+  await authStore.init()
+
+  app.use(router)
+  app.mount('#app')
+}
+
+bootstrap()

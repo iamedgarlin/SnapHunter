@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { auth, googleProvider, signInWithPopup, signOut } from '../firebase'
-import { onAuthStateChanged, signInWithRedirect } from 'firebase/auth'
+import { onAuthStateChanged } from 'firebase/auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -10,13 +10,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loginWithGoogle() {
     try {
-      const isPWA = window.matchMedia('(display-mode: standalone)').matches
-      console.log('loginWithGoogle, isPWA:', isPWA)
-      if (isPWA) {
-        await signInWithRedirect(auth, googleProvider)
-      } else {
-        await signInWithPopup(auth, googleProvider)
-      }
+      await signInWithPopup(auth, googleProvider)
     } catch (error) {
       console.error('Login error:', error)
     }
@@ -27,17 +21,33 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function init() {
-    onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        user.value = firebaseUser
-        isLoggedIn.value = true
-      } else {
-        user.value = null
-        isLoggedIn.value = false
-      }
-      loading.value = false
+    return new Promise((resolve) => {
+      let resolved = false
+      onAuthStateChanged(auth, (firebaseUser) => {
+        if (firebaseUser) {
+          user.value = firebaseUser
+          isLoggedIn.value = true
+        } else {
+          user.value = null
+          isLoggedIn.value = false
+        }
+
+        loading.value = false
+
+        if (!resolved) {
+          resolved = true
+          resolve()
+        }
+      })
     })
   }
 
-  return { user, isLoggedIn, loading, loginWithGoogle, logout, init }
+  return {
+    user,
+    isLoggedIn,
+    loading,
+    loginWithGoogle,
+    logout,
+    init
+  }
 })

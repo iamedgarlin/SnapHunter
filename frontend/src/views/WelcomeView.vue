@@ -128,19 +128,10 @@
 
     </div>
 
-    <!-- Debug panel -->
-    <div class="fixed bottom-20 left-4 right-4 z-50 text-xs bg-black text-white p-3 rounded-2xl opacity-90">
-      <p>isPWA: {{ isPWA }}</p>
-      <p>isLoggedIn: {{ authStore.isLoggedIn }}</p>
-      <p>loading: {{ authStore.loading }}</p>
-      <p>user: {{ authStore.user?.email || 'none' }}</p>
-    </div>
-
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -151,11 +142,11 @@ import {
 const router = useRouter()
 const authStore = useAuthStore()
 
-const isPWA = computed(() => window.matchMedia('(display-mode: standalone)').matches)
-
 async function handleLogin() {
-  console.log('handleLogin clicked, isPWA:', isPWA.value)
   await authStore.loginWithGoogle()
+  if (authStore.isLoggedIn) {
+    router.push('/home')
+  }
 }
 
 const previewBadges = [
