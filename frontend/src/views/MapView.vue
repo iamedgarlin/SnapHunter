@@ -4,40 +4,6 @@
     <!-- Map -->
     <div class="relative" style="height: 55vh; flex-shrink: 0">
       <div id="map" class="w-full h-full"></div>
-
-      <!-- Unlock animation -->
-      <Transition name="pop">
-        <div v-if="unlockAnim"
-          class="absolute inset-0 flex items-center justify-center z-50 pointer-events-none">
-          <div class="flex flex-col items-center gap-2">
-            <div class="rounded-3xl px-6 py-4 flex flex-col items-center gap-1"
-              style="background: white; border: 3px solid #34d399; border-bottom: 5px solid #16a34a">
-              <PhMapPin :size="32" weight="duotone" color="#16a34a" />
-              <p class="text-base font-black text-emerald-800">Park Unlocked!</p>
-              <p class="text-sm font-bold text-emerald-600">{{ unlockAnim.name }}</p>
-              <div class="flex items-center gap-1 mt-1">
-                <PhLightning :size="14" weight="duotone" color="#f59e0b" />
-                <span class="text-sm font-black text-amber-500">+50 XP</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- Center button -->
-      <button
-        class="absolute bottom-4 right-4 z-40 w-10 h-10 rounded-2xl flex items-center justify-center"
-        style="background: white; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1"
-        @click="centerOnUser">
-        <PhNavigationArrow :size="18" weight="duotone" color="#10b981" />
-      </button>
-
-      <!-- Victoria badge -->
-      <div class="absolute top-4 left-4 z-40 rounded-2xl px-3 py-1.5 flex items-center gap-1.5"
-        style="background: white; border: 2px solid #bbf7d0; border-bottom: 2px solid #34d399">
-        <PhMapTrifold :size="14" weight="duotone" color="#10b981" />
-        <span class="text-xs font-black text-emerald-700">Victoria, AU</span>
-      </div>
     </div>
 
     <!-- Parks list -->
@@ -100,7 +66,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
@@ -108,8 +74,12 @@ import {
   PhMapTrifold, PhTree, PhSealCheck
 } from '@phosphor-icons/vue'
 
+/* ─── Constants ─── */
 const UNLOCK_RADIUS_KM = 0.2
+const MIN_RECORD_DIST_M = 8
+const FOG_TRAIL_RADIUS_KM = 0.15
 
+/* ─── State ─── */
 const parks = ref([
   { id: 1,  name: 'Flagstaff Gardens',      lat: -37.8090, lng: 144.9520, unlocked: true,  distance: null },
   { id: 2,  name: 'Fitzroy Gardens',         lat: -37.8136, lng: 144.9793, unlocked: true,  distance: null },
@@ -124,7 +94,8 @@ const parks = ref([
 ])
 
 const userPos = ref(null)
-const unlockAnim = ref(null)
+const trackDistanceKm = ref(0)
+const trailPoints = ref([])
 
 let map = null
 let userMarker = null
@@ -132,6 +103,12 @@ let watchId = null
 let fogOverlay = null
 const parkMarkers = {}
 
+// HUD DOM references (managed manually via L.Control)
+let hudDistEl = null
+let hudUnlockEl = null
+let unlockTimer = null
+
+/* ─── Helpers ─── */
 function haversine(lat1, lng1, lat2, lng2) {
   const R = 6371
   const dLat = (lat2 - lat1) * Math.PI / 180
@@ -148,6 +125,15 @@ function formatDistance(km) {
   return `${km.toFixed(1)}km`
 }
 
+function fmtTrackDist() {
+  const km = trackDistanceKm.value
+  if (!km || km === 0) return '0m'
+  if (km < 1) return `${Math.round(km * 1000)}m`
+  return `${km.toFixed(1)}km`
+}
+
+const formatTrackDistance = computed(() => fmtTrackDist())
+
 const sortedParks = computed(() =>
   [...parks.value].sort((a, b) => {
     if (a.distance === null) return 1
@@ -158,94 +144,236 @@ const sortedParks = computed(() =>
 
 const unlockedCount = computed(() => parks.value.filter(p => p.unlocked).length)
 
-function makePinIcon(unlocked, inRange = false) {
-  const fill = unlocked ? '#16a34a' : inRange ? '#f59e0b' : '#cbd5e1'
-  const stroke = unlocked ? '#064e3b' : inRange ? '#b45309' : '#94a3b8'
-  const size = 22
+// Keep HUD distance text in sync
+watch(trackDistanceKm, () => {
+  if (hudDistEl) hudDistEl.textContent = fmtTrackDist()
+})
 
+/* ─── Trail persistence ─── */
+function persistTrail() {
+  try {
+    localStorage.setItem('snaphunter_trail', JSON.stringify(trailPoints.value))
+    localStorage.setItem('snaphunter_trail_km', String(trackDistanceKm.value))
+  } catch (e) { /* full or unavailable */ }
+}
+
+function loadTrail() {
+  try {
+    const raw = localStorage.getItem('snaphunter_trail')
+    if (raw) trailPoints.value = JSON.parse(raw)
+    const km = localStorage.getItem('snaphunter_trail_km')
+    if (km) trackDistanceKm.value = parseFloat(km) || 0
+  } catch (e) { /* ignore */ }
+}
+
+function addTrailPoint(lat, lng) {
+  const pts = trailPoints.value
+  if (pts.length > 0) {
+    const last = pts[pts.length - 1]
+    const distM = haversine(last.lat, last.lng, lat, lng) * 1000
+    if (distM < MIN_RECORD_DIST_M) return false
+    trackDistanceKm.value += distM / 1000
+  }
+  pts.push({ lat, lng })
+  if (pts.length % 10 === 0) persistTrail()
+  return true
+}
+
+/* ─── Map pin icons ─── */
+function makePinIcon(unlocked) {
+  const fill = unlocked ? '#16a34a' : '#cbd5e1'
+  const stroke = unlocked ? '#064e3b' : '#94a3b8'
+  const s = 22
   return L.divIcon({
     className: '',
-    html: `
-      <div style="width:${size}px;height:${Math.round(size * 1.25)}px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.2))">
-        <svg viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg"
-          width="${size}" height="${Math.round(size * 1.25)}">
-          <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z"
-            fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
-          <circle cx="16" cy="12" r="5" fill="white" opacity="0.9"/>
-        </svg>
-      </div>`,
-    iconSize: [size, Math.round(size * 1.25)],
-    iconAnchor: [size / 2, Math.round(size * 1.25)],
-    popupAnchor: [0, -Math.round(size * 1.25)],
+    html: `<div style="width:${s}px;height:${Math.round(s*1.25)}px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.2))">
+      <svg viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg" width="${s}" height="${Math.round(s*1.25)}">
+        <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+        <circle cx="16" cy="12" r="5" fill="white" opacity="0.9"/>
+      </svg></div>`,
+    iconSize: [s, Math.round(s * 1.25)],
+    iconAnchor: [s / 2, Math.round(s * 1.25)],
+    popupAnchor: [0, -Math.round(s * 1.25)],
   })
 }
 
+/* ─── Fog overlay ─── */
 const FogCanvas = L.Layer.extend({
-  onAdd(map) {
-    this._map = map
+  onAdd(m) {
+    this._map = m
     this._canvas = document.createElement('canvas')
-    this._canvas.style.position = 'absolute'
-    this._canvas.style.top = '0'
-    this._canvas.style.left = '0'
-    this._canvas.style.pointerEvents = 'none'
-    this._canvas.style.zIndex = '400'
-    map.getPane('overlayPane').appendChild(this._canvas)
-    map.on('move zoom moveend zoomend resize', this._redraw, this)
+    Object.assign(this._canvas.style, {
+      position: 'absolute', top: '0', left: '0', pointerEvents: 'none',
+    })
+    m.getPane('overlayPane').appendChild(this._canvas)
+    m.on('move zoom moveend zoomend resize', this._redraw, this)
     this._redraw()
   },
-
-  onRemove(map) {
-    map.off('move zoom moveend zoomend resize', this._redraw, this)
+  onRemove(m) {
+    m.off('move zoom moveend zoomend resize', this._redraw, this)
     this._canvas.remove()
   },
-
   _redraw() {
-    const map = this._map
-    const size = map.getSize()
-    const canvas = this._canvas
-    canvas.width = size.x
-    canvas.height = size.y
+    const m = this._map, size = m.getSize(), c = this._canvas
+    c.width = size.x; c.height = size.y
+    L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]))
 
-    const topLeft = map.containerPointToLayerPoint([0, 0])
-    L.DomUtil.setPosition(canvas, topLeft)
-
-    const ctx = canvas.getContext('2d')
+    const ctx = c.getContext('2d')
     ctx.clearRect(0, 0, size.x, size.y)
-
-    ctx.fillStyle = 'rgba(20, 24, 35, 0.72)'
+    ctx.fillStyle = 'rgba(20,24,35,0.72)'
     ctx.fillRect(0, 0, size.x, size.y)
-
     ctx.globalCompositeOperation = 'destination-out'
 
-    parks.value.filter(p => p.unlocked).forEach(park => {
-      const pt = map.latLngToContainerPoint([park.lat, park.lng])
-
-      // Convert 400m geographic radius to pixels at current zoom
-      const edgePt = map.latLngToContainerPoint([
-        park.lat + (0.4 / 111),
-        park.lng
-      ])
-      const pixelRadius = Math.abs(edgePt.y - pt.y)
-
-      const grad = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pixelRadius)
-      grad.addColorStop(0,    'rgba(0,0,0,1)')
-      grad.addColorStop(0.75, 'rgba(0,0,0,0.95)')
-      grad.addColorStop(1,    'rgba(0,0,0,0)')
-
-      ctx.beginPath()
-      ctx.arc(pt.x, pt.y, pixelRadius, 0, Math.PI * 2)
-      ctx.fillStyle = grad
-      ctx.fill()
+    // 1) Unlocked parks (400m)
+    parks.value.filter(p => p.unlocked).forEach(pk => {
+      const pt = m.latLngToContainerPoint([pk.lat, pk.lng])
+      const r = Math.abs(m.latLngToContainerPoint([pk.lat + 0.4/111, pk.lng]).y - pt.y)
+      const g = ctx.createRadialGradient(pt.x,pt.y,0, pt.x,pt.y,r)
+      g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.75,'rgba(0,0,0,0.95)'); g.addColorStop(1,'rgba(0,0,0,0)')
+      ctx.beginPath(); ctx.arc(pt.x,pt.y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill()
     })
 
+    // 2) Trail (150m per point)
+    const pts = trailPoints.value
+    if (pts.length > 0) {
+      const b = m.getBounds()
+      const mLat = (b.getNorth()-b.getSouth())*0.2, mLng = (b.getEast()-b.getWest())*0.2
+      const south=b.getSouth()-mLat, north=b.getNorth()+mLat, west=b.getWest()-mLng, east=b.getEast()+mLng
+      for (let i=0; i<pts.length; i++) {
+        const p = pts[i]
+        if (p.lat<south||p.lat>north||p.lng<west||p.lng>east) continue
+        const pt = m.latLngToContainerPoint([p.lat,p.lng])
+        const r = Math.abs(m.latLngToContainerPoint([p.lat+FOG_TRAIL_RADIUS_KM/111,p.lng]).y - pt.y)
+        if (r<1) continue
+        const g = ctx.createRadialGradient(pt.x,pt.y,0, pt.x,pt.y,r)
+        g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.7,'rgba(0,0,0,0.9)'); g.addColorStop(1,'rgba(0,0,0,0)')
+        ctx.beginPath(); ctx.arc(pt.x,pt.y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill()
+      }
+    }
     ctx.globalCompositeOperation = 'source-over'
   },
-
-  update() {
-    this._redraw()
-  }
+  update() { this._redraw() }
 })
 
+/* ─────────────────────────────────────────────
+ *  HUD via L.Control
+ *
+ *  L.Control places DOM elements inside Leaflet's
+ *  own control container, which sits in a div with
+ *  class "leaflet-control-container". This container
+ *  is a CHILD of the map div and has z-index: 800+
+ *  by default — higher than all map panes including
+ *  overlayPane (z-index 400) and popupPane (700).
+ *
+ *  Because controls live INSIDE Leaflet's stacking
+ *  context, they are guaranteed to render above all
+ *  tiles, overlays, markers, and our fog canvas.
+ *  No fixed/absolute hacks, no GPU layer battles.
+ * ───────────────────────────────────────────── */
+
+function createHudControls() {
+  // ── Top-left: Victoria badge ──
+  const BadgeControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+      const el = L.DomUtil.create('div', 'leaflet-hud-badge')
+      el.innerHTML = `
+        <svg width="14" height="14" viewBox="0 0 256 256" fill="none">
+          <path d="M228.92,49.69a8,8,0,0,0-6.86-1.45L160.93,63.52,99.58,32.84a8,8,0,0,0-5.52-.6l-64,16A8,8,0,0,0,24,56V200a8,8,0,0,0,9.94,7.76l60.06-15,61.35,30.68A8,8,0,0,0,160,224a8.43,8.43,0,0,0,1.73-.19l64-16A8,8,0,0,0,232,200V56A8,8,0,0,0,228.92,49.69Z"
+            fill="#10b981" opacity="0.2"/>
+          <path d="M228.92,49.69a8,8,0,0,0-6.86-1.45L160.93,63.52,99.58,32.84a8,8,0,0,0-5.52-.6l-64,16A8,8,0,0,0,24,56V200a8,8,0,0,0,9.94,7.76l60.06-15,61.35,30.68A8,8,0,0,0,160,224a8.43,8.43,0,0,0,1.73-.19l64-16A8,8,0,0,0,232,200V56A8,8,0,0,0,228.92,49.69ZM96,176a8,8,0,0,0-1.73.19L40,190.71V61.29l56-14V152a8,8,0,0,0,0,16Zm64,18.71-48-24V65.29l48,24ZM216,194.71l-40,10V99.29" 
+            fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>Victoria, AU</span>`
+      L.DomEvent.disableClickPropagation(el)
+      return el
+    }
+  })
+
+  // ── Top-right: distance tracker ──
+  const DistControl = L.Control.extend({
+    options: { position: 'topright' },
+    onAdd() {
+      const el = L.DomUtil.create('div', 'leaflet-hud-badge')
+      el.innerHTML = `<span class="leaflet-hud-pulse"></span><span class="leaflet-hud-dist">0m</span>`
+      hudDistEl = el.querySelector('.leaflet-hud-dist')
+      L.DomEvent.disableClickPropagation(el)
+      return el
+    }
+  })
+
+  // ── Bottom-right: center button ──
+  const CenterControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      const el = L.DomUtil.create('div', 'leaflet-hud-btn')
+      el.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 256 256" fill="none">
+          <path d="M213.49,101.07l-128-80a12,12,0,0,0-13.16.65A12,12,0,0,0,68,32V224a12,12,0,0,0,4.33,9.28,12,12,0,0,0,13.16.65l128-80a12,12,0,0,0,0-20.43Z"
+            fill="#10b981" opacity="0.2"/>
+          <path d="M234.35,114.35l-128-80A12,12,0,0,0,88,44V212a12,12,0,0,0,18.35,10.18l128-84a12,12,0,0,0,0-20.36Z"
+            fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"
+            transform="rotate(-45 128 128)"/>
+        </svg>`
+      el.style.cursor = 'pointer'
+      L.DomEvent.disableClickPropagation(el)
+      L.DomEvent.on(el, 'click', () => centerOnUser())
+      return el
+    }
+  })
+
+  // ── Center: unlock popup (initially hidden) ──
+  const UnlockControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd() {
+      const el = L.DomUtil.create('div', 'leaflet-hud-unlock')
+      el.style.display = 'none'
+      hudUnlockEl = el
+      L.DomEvent.disableClickPropagation(el)
+      return el
+    }
+  })
+
+  new BadgeControl().addTo(map)
+  new DistControl().addTo(map)
+  new CenterControl().addTo(map)
+  new UnlockControl().addTo(map)
+}
+
+function showUnlockAnim(park) {
+  if (!hudUnlockEl) return
+  hudUnlockEl.innerHTML = `
+    <div class="leaflet-hud-unlock-inner">
+      <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
+        <path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z"
+          fill="#16a34a" opacity="0.2"/>
+        <path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z"
+          fill="none" stroke="#16a34a" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="128" cy="104" r="32" fill="none" stroke="#16a34a" stroke-width="16"/>
+      </svg>
+      <p class="unlock-name">${park.name}</p>
+      <div class="unlock-xp">
+        <svg width="12" height="12" viewBox="0 0 256 256" fill="none">
+          <path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"
+            fill="#f59e0b" opacity="0.2"/>
+          <path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"
+            fill="none" stroke="#f59e0b" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>+50 XP</span>
+      </div>
+    </div>`
+  hudUnlockEl.style.display = 'block'
+  hudUnlockEl.classList.remove('pop-anim')
+  void hudUnlockEl.offsetWidth // force reflow
+  hudUnlockEl.classList.add('pop-anim')
+
+  clearTimeout(unlockTimer)
+  unlockTimer = setTimeout(() => {
+    hudUnlockEl.style.display = 'none'
+  }, 3000)
+}
+
+/* ─── Map init ─── */
 function initMap() {
   map = L.map('map', {
     center: [-37.8136, 144.9631],
@@ -262,6 +390,12 @@ function initMap() {
   fogOverlay.addTo(map)
 
   parks.value.forEach(park => addParkMarker(park))
+
+  // Create HUD elements as Leaflet controls
+  createHudControls()
+
+  // Set initial distance text
+  if (hudDistEl) hudDistEl.textContent = fmtTrackDist()
 }
 
 function addParkMarker(park) {
@@ -273,8 +407,7 @@ function addParkMarker(park) {
         <p style="font-size:11px;color:${park.unlocked ? '#16a34a' : '#94a3b8'};margin:0">
           ${park.unlocked ? '✓ Unlocked' : 'Visit to unlock'}
         </p>
-      </div>
-    `, { closeButton: false, offset: [0, -8] })
+      </div>`, { closeButton: false, offset: [0, -8] })
   parkMarkers[park.id] = marker
 }
 
@@ -282,27 +415,19 @@ function refreshMarker(park) {
   parkMarkers[park.id]?.setIcon(makePinIcon(park.unlocked))
 }
 
+/* ─── Geolocation ─── */
 function startTracking() {
   if (!navigator.geolocation) return
-
   watchId = navigator.geolocation.watchPosition(
     ({ coords: { latitude: lat, longitude: lng } }) => {
       userPos.value = { lat, lng }
-
-      parks.value.forEach(p => {
-        p.distance = haversine(lat, lng, p.lat, p.lng)
-      })
+      parks.value.forEach(p => { p.distance = haversine(lat, lng, p.lat, p.lng) })
 
       if (!userMarker) {
         const icon = L.divIcon({
           className: '',
-          html: `<div style="
-            width:18px;height:18px;border-radius:50%;
-            background:#3b82f6;border:3px solid white;
-            box-shadow:0 0 0 5px rgba(59,130,246,0.25)">
-          </div>`,
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+          html: `<div style="width:18px;height:18px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 5px rgba(59,130,246,0.25)"></div>`,
+          iconSize: [18, 18], iconAnchor: [9, 9],
         })
         userMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 }).addTo(map)
         map.setView([lat, lng], 14)
@@ -311,9 +436,11 @@ function startTracking() {
       }
 
       checkUnlocks(lat, lng)
+      const added = addTrailPoint(lat, lng)
+      if (added) fogOverlay?.update()
     },
     err => console.warn('Geo error:', err),
-    { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+    { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
   )
 }
 
@@ -326,15 +453,9 @@ function checkUnlocks(lat, lng) {
       anyNew = true
       refreshMarker(park)
       showUnlockAnim(park)
-      // TODO: POST to backend to save unlock
     }
   })
   if (anyNew) fogOverlay?.update()
-}
-
-function showUnlockAnim(park) {
-  unlockAnim.value = park
-  setTimeout(() => { unlockAnim.value = null }, 3000)
 }
 
 function centerOnUser() {
@@ -347,49 +468,177 @@ function focusPark(park) {
 }
 
 function navigateToPark(park) {
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
-  const isAndroid = /Android/.test(navigator.userAgent)
-
-  if (isIOS) {
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua)) {
     window.location.href = `maps://maps.apple.com/?daddr=${park.lat},${park.lng}&dirflg=w`
-  } else if (isAndroid) {
+  } else if (/Android/.test(ua)) {
     window.location.href = `geo:${park.lat},${park.lng}?q=${encodeURIComponent(park.name)}`
   } else {
-    window.open(
-      `https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lng}&travelmode=walking`,
-      '_blank'
-    )
+    window.open(`https://www.google.com/maps/dir/?api=1&destination=${park.lat},${park.lng}&travelmode=walking`, '_blank')
   }
 }
 
+/* ─── Lifecycle ─── */
 onMounted(() => {
+  loadTrail()
   initMap()
   startTracking()
 })
 
 onUnmounted(() => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId)
+  clearTimeout(unlockTimer)
+  persistTrail()
   map?.remove()
 })
 </script>
 
+<style>
+/* ═══════════════════════════════════
+   HUD ROOT RESET（关键）
+   只去掉默认背景，但保留布局
+   ═══════════════════════════════════ */
+#map :deep(.leaflet-control) {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* ═══════════════════════════════════
+   BADGE（左上 / 右上）
+   完全自带视觉，不依赖父层
+   ═══════════════════════════════════ */
+.leaflet-hud-badge {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+
+  padding: 6px 12px !important;
+  border-radius: 16px !important;
+
+  background: white !important;
+  border: 2px solid #bbf7d0 !important;
+  border-bottom: 2px solid #34d399 !important;
+
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+
+  font-family: var(--font-game), system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  color: #047857 !important;
+
+  line-height: 1 !important;
+}
+
+/* ═══════════════════════════════════
+   按钮（右下）
+   ═══════════════════════════════════ */
+.leaflet-hud-btn {
+  width: 42px !important;
+  height: 42px !important;
+
+  border-radius: 16px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  background: white !important;
+
+  border: 2px solid #e2e8f0 !important;
+  border-bottom: 3px solid #cbd5e1 !important;
+
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12) !important;
+
+  cursor: pointer !important;
+  transition: transform 0.1s !important;
+}
+
+.leaflet-hud-btn:active {
+  transform: scale(0.9) !important;
+}
+
+/* ═══════════════════════════════════
+   Pulse
+   ═══════════════════════════════════ */
+.leaflet-hud-pulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  animation: leaflet-hud-pulse-anim 1.5s ease-in-out infinite;
+}
+
+@keyframes leaflet-hud-pulse-anim {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.75); }
+}
+
+.leaflet-hud-dist {
+  color: #059669 !important;
+}
+
+/* ═══════════════════════════════════
+   UNLOCK 弹窗（保持不变，但微调阴影）
+   ═══════════════════════════════════ */
+.leaflet-hud-unlock {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  pointer-events: none !important;
+}
+
+.leaflet-hud-unlock-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+
+  padding: 16px 24px;
+  border-radius: 24px;
+
+  background: white;
+
+  border: 3px solid #34d399;
+  border-bottom: 5px solid #16a34a;
+
+  box-shadow: 0 12px 32px rgba(0,0,0,0.18);
+
+  font-family: var(--font-game), system-ui, sans-serif;
+}
+
+/* 动画保持 */
+.pop-anim {
+  animation: leaflet-hud-pop 0.3s ease, leaflet-hud-fadeout 0.4s ease 2.4s forwards;
+}
+
+@keyframes leaflet-hud-pop {
+  from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
+@keyframes leaflet-hud-fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+</style>
+
 <style scoped>
+/* Leaflet popup overrides (scoped is fine here since #map is in template) */
 #map :deep(.leaflet-popup-content-wrapper) {
   border-radius: 14px;
   border: 1.5px solid #e2e8f0;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08);
   padding: 2px;
 }
-#map :deep(.leaflet-popup-tip-container) {
-  display: none;
-}
-#map :deep(.leaflet-popup-content) {
-  margin: 8px 12px;
-}
-.pop-enter-active { animation: popIn 0.3s ease; }
-.pop-leave-active { animation: popIn 0.2s ease reverse; }
-@keyframes popIn {
-  from { transform: scale(0.8); opacity: 0; }
-  to   { transform: scale(1);   opacity: 1; }
-}
+#map :deep(.leaflet-popup-tip-container) { display: none; }
+#map :deep(.leaflet-popup-content) { margin: 8px 12px; }
+
+/* Override Leaflet control margins for tighter spacing */
+#map :deep(.leaflet-top.leaflet-left .leaflet-control) { margin-left: 16px; margin-top: 16px; }
+#map :deep(.leaflet-top.leaflet-right .leaflet-control) { margin-right: 16px; margin-top: 16px; }
+#map :deep(.leaflet-bottom.leaflet-right .leaflet-control) { margin-right: 16px; margin-bottom: 16px; }
+
 </style>
