@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { auth, googleProvider, signInWithRedirect, signInWithPopup, signOut, getRedirectResult } from '../firebase'
+import { auth, googleProvider, signInWithRedirect, signOut, getRedirectResult } from '../firebase'
 import { onAuthStateChanged } from 'firebase/auth'
+import { useRouter } from 'vue-router'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -10,14 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function loginWithGoogle() {
     try {
-      const isPWA = window.matchMedia('(display-mode: standalone)').matches
-      if (isPWA) {
-        const result = await signInWithPopup(auth, googleProvider)
-        user.value = result.user
-        isLoggedIn.value = true
-      } else {
-        await signInWithRedirect(auth, googleProvider)
-      }
+      await signInWithRedirect(auth, googleProvider)
     } catch (error) {
       console.error('Login error:', error)
     }
@@ -35,6 +29,8 @@ export const useAuthStore = defineStore('auth', () => {
         if (result?.user) {
           user.value = result.user
           isLoggedIn.value = true
+          // 手动跳转，不依赖路由守卫
+          window.location.href = '/home'
         }
       })
       .catch((error) => {
