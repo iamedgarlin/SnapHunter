@@ -66,29 +66,39 @@
 
         <!-- Task cards horizontal scroll -->
         <div class="bg-white px-4 pt-3 pb-4">
-          <div v-if="!getSeriesTasks(series.id).length"
+          <div v-if="!getGroupedTasks(series.id).length"
             class="flex items-center justify-center py-6 text-xs font-semibold text-gray-400">
             No tasks loaded yet
           </div>
           <div v-else class="flex gap-3 overflow-x-auto pb-1"
             style="scrollbar-width: none; -ms-overflow-style: none;">
 
-            <div v-for="task in getSeriesTasks(series.id)" :key="task.taskId"
-              class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden"
+            <div v-for="group in getGroupedTasks(series.id)" :key="group.key"
+              class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden relative"
               style="width: 140px; height: 160px;"
-              :style="task.done
+              :style="group.allDone
                 ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`
                 : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
-              @click="openConfirm(task, series)">
+              @click="handleCardClick(group, series)">
+
+              <!-- Multi-location badge -->
+              <div v-if="group.tasks.length > 1"
+                class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
+                :style="group.allDone
+                  ? `background: ${series.color}; color: white`
+                  : 'background: #e2e8f0; color: #64748b'">
+                <PhMapPin :size="10" weight="duotone" :color="group.allDone ? 'white' : '#64748b'" />
+                <span class="text-xs font-black" style="font-size: 10px; line-height: 1">{{ group.doneCount }}/{{ group.tasks.length }}</span>
+              </div>
 
               <!-- Icon area -->
               <div class="flex items-center justify-center pt-3 pb-2">
                 <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  :style="task.done
+                  :style="group.allDone
                     ? `background: white; border: 2px solid ${series.borderColor}`
                     : 'background: white; border: 2px solid #e2e8f0'">
                   <PhCamera :size="20" weight="duotone"
-                    :color="task.done ? series.color : '#94a3b8'" />
+                    :color="group.allDone ? series.color : '#94a3b8'" />
                 </div>
               </div>
 
@@ -97,20 +107,24 @@
                 <div>
                   <p class="text-xs font-black leading-tight overflow-hidden"
                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-                    :style="task.done ? `color: ${series.color}` : 'color: #1f2937'">
-                    {{ task.taskName }}
+                    :style="group.allDone ? `color: ${series.color}` : 'color: #1f2937'">
+                    {{ group.taskName }}
                   </p>
-                  <p class="text-xs font-semibold text-gray-400 mt-1 overflow-hidden"
+                  <p v-if="group.tasks.length === 1" class="text-xs font-semibold text-gray-400 mt-1 overflow-hidden"
                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
-                    {{ task.taskDescription }}
+                    {{ group.tasks[0].taskDescription }}
+                  </p>
+                  <p v-else class="text-xs font-semibold mt-1"
+                    :style="group.someDone ? `color: ${series.color}` : 'color: #94a3b8'">
+                    {{ group.tasks.length }} locations
                   </p>
                 </div>
                 <div class="flex items-center justify-between mt-2">
                   <div class="flex items-center gap-0.5">
                     <PhLightning :size="11" weight="duotone" color="#f59e0b" />
-                    <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+                    <span class="text-xs font-black text-amber-500">+{{ group.totalReward }}</span>
                   </div>
-                  <PhCheckCircle v-if="task.done" :size="16" weight="duotone" :color="series.color" />
+                  <PhCheckCircle v-if="group.allDone" :size="16" weight="duotone" :color="series.color" />
                   <PhCamera v-else :size="14" weight="duotone" color="#cbd5e1" />
                 </div>
               </div>
@@ -135,6 +149,76 @@
     <!-- Hidden file input -->
     <input ref="fileInput" type="file" accept="image/*" capture="environment"
       class="hidden" @change="handlePhotoCapture" />
+
+    <!-- Location picker modal (for grouped tasks with multiple locations) -->
+    <div v-if="showLocationPicker"
+      class="fixed inset-0 flex items-end justify-center z-50"
+      style="background: rgba(0,0,0,0.4)"
+      @click.self="closeLocationPicker">
+      <div class="w-full max-w-md bg-white rounded-t-3xl p-6 flex flex-col gap-3"
+        :style="`border-top: 4px solid ${selectedSeries?.borderBottomColor || '#34d399'}`">
+
+        <!-- Header -->
+        <div class="flex items-center gap-3 mb-1">
+          <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
+            :style="`background: ${selectedSeries?.iconBg}; border: 2px solid ${selectedSeries?.borderColor}; border-bottom: 3px solid ${selectedSeries?.borderBottomColor}`">
+            <component :is="selectedSeries?.icon" :size="24" weight="duotone" :color="selectedSeries?.color || '#16a34a'" />
+          </div>
+          <div>
+            <p class="text-lg font-black text-gray-800">{{ selectedGroup?.taskName }}</p>
+            <p class="text-xs font-semibold text-gray-400">
+              {{ selectedGroup?.doneCount }}/{{ selectedGroup?.tasks.length }} locations completed
+            </p>
+          </div>
+        </div>
+
+        <!-- Location progress bar -->
+        <div class="h-2 rounded-full overflow-hidden" style="background: #f1f5f9">
+          <div class="h-full rounded-full transition-all duration-500"
+            :style="`width: ${selectedGroup ? Math.round((selectedGroup.doneCount / selectedGroup.tasks.length) * 100) : 0}%; background: ${selectedSeries?.color}`">
+          </div>
+        </div>
+
+        <!-- Task list -->
+        <div class="flex flex-col gap-2 max-h-64 overflow-y-auto" style="scrollbar-width: thin">
+          <div v-for="task in selectedGroup?.tasks" :key="task.taskId"
+            class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-98 transition-all"
+            :style="task.done
+              ? `background: ${selectedSeries?.iconBg}; border: 2px solid ${selectedSeries?.borderColor}`
+              : 'background: #f8fafc; border: 2px solid #e2e8f0'"
+            @click="openConfirmFromLocation(task)">
+
+            <!-- Status icon -->
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              :style="task.done
+                ? `background: ${selectedSeries?.color}`
+                : 'background: white; border: 2px solid #e2e8f0'">
+              <PhCheckCircle v-if="task.done" :size="18" weight="duotone" color="white" />
+              <PhMapPin v-else :size="18" weight="duotone" color="#94a3b8" />
+            </div>
+
+            <!-- Task info -->
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-black leading-tight"
+                :style="task.done ? `color: ${selectedSeries?.color}` : 'color: #1f2937'">
+                {{ task.taskDescription }}
+              </p>
+            </div>
+
+            <!-- Reward -->
+            <div class="flex items-center gap-1 flex-shrink-0">
+              <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+              <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+              <PhCaretRight v-if="!task.done" :size="14" weight="bold" color="#cbd5e1" />
+            </div>
+          </div>
+        </div>
+
+        <button class="text-sm font-bold text-gray-400 py-2" @click="closeLocationPicker">
+          Close
+        </button>
+      </div>
+    </div>
 
     <!-- Task detail + confirm modal -->
     <div v-if="showModal"
@@ -217,7 +301,8 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import {
   PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
-  PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush
+  PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush,
+  PhMapPin, PhCaretRight
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -225,8 +310,10 @@ const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsi
 const allTasks = ref([])
 const loadingTasks = ref(false)
 const showModal = ref(false)
+const showLocationPicker = ref(false)
 const selectedTask = ref(null)
 const selectedSeries = ref(null)
+const selectedGroup = ref(null)
 const fileInput = ref(null)
 const capturedPhoto = ref(null)
 const evaluating = ref(false)
@@ -268,8 +355,14 @@ const seriesList = [
 async function fetchAllTasks() {
   loadingTasks.value = true
   try {
-    const res = await axios.get(`${BASE_URL}/api/tasks/random`)
-    allTasks.value = res.data.map(t => ({ ...t, done: false }))
+    const results = await Promise.all(
+      seriesList.map(s =>
+        axios.get(`${BASE_URL}/api/tasks/series/all`, { params: { seriesId: s.id } })
+          .then(res => res.data)
+          .catch(() => [])
+      )
+    )
+    allTasks.value = results.flat().map(t => ({ ...t, done: false }))
   } catch (e) {
     console.error('Failed to fetch tasks:', e)
   } finally {
@@ -279,6 +372,36 @@ async function fetchAllTasks() {
 
 function getSeriesTasks(seriesId) {
   return allTasks.value.filter(t => t.seriesId === seriesId)
+}
+
+/**
+ * Group tasks by taskName within a series.
+ * Each group = { key, taskName, tasks[], totalReward, doneCount, allDone, someDone }
+ */
+function getGroupedTasks(seriesId) {
+  const tasks = getSeriesTasks(seriesId)
+  const map = new Map()
+  for (const task of tasks) {
+    const key = task.taskName
+    if (!map.has(key)) {
+      map.set(key, [])
+    }
+    map.get(key).push(task)
+  }
+  const groups = []
+  for (const [taskName, groupTasks] of map) {
+    const doneCount = groupTasks.filter(t => t.done).length
+    groups.push({
+      key: `${seriesId}-${taskName}`,
+      taskName,
+      tasks: groupTasks,
+      totalReward: groupTasks.reduce((sum, t) => sum + t.rewardPoint, 0),
+      doneCount,
+      allDone: doneCount === groupTasks.length,
+      someDone: doneCount > 0 && doneCount < groupTasks.length,
+    })
+  }
+  return groups
 }
 
 function seriesCompletedCount(seriesId) {
@@ -296,6 +419,35 @@ function seriesCompleted(seriesId) {
   return tasks.length > 0 && tasks.every(t => t.done)
 }
 
+/**
+ * Clicking a card:
+ * - If group has 1 task -> open confirm modal directly
+ * - If group has multiple tasks -> open location picker first
+ */
+function handleCardClick(group, series) {
+  if (group.allDone) return
+  selectedSeries.value = series
+  if (group.tasks.length === 1) {
+    const task = group.tasks[0]
+    if (task.done) return
+    openConfirm(task, series)
+  } else {
+    selectedGroup.value = group
+    showLocationPicker.value = true
+  }
+}
+
+function openConfirmFromLocation(task) {
+  if (task.done) return
+  showLocationPicker.value = false
+  openConfirm(task, selectedSeries.value)
+}
+
+function closeLocationPicker() {
+  showLocationPicker.value = false
+  selectedGroup.value = null
+}
+
 function openConfirm(task, series) {
   if (task.done) return
   selectedTask.value = task
@@ -308,9 +460,24 @@ function openConfirm(task, series) {
 function closeConfirm() {
   showModal.value = false
   selectedTask.value = null
-  selectedSeries.value = null
   capturedPhoto.value = null
   evalResult.value = null
+  // If we came from a location picker, reopen it with refreshed data
+  if (selectedGroup.value) {
+    refreshSelectedGroup()
+    showLocationPicker.value = true
+  }
+}
+
+/** Refresh the selectedGroup reactive data after a task completion */
+function refreshSelectedGroup() {
+  if (!selectedGroup.value) return
+  const seriesId = selectedSeries.value?.id
+  const groups = getGroupedTasks(seriesId)
+  const updated = groups.find(g => g.taskName === selectedGroup.value.taskName)
+  if (updated) {
+    selectedGroup.value = updated
+  }
 }
 
 function triggerCamera() {
