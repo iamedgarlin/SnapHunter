@@ -151,15 +151,23 @@
                 </p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ task.taskDescription }}</p>
               </div>
-              <div v-if="!task.done" class="flex items-center gap-0.5">
-                <PhLightning :size="12" weight="duotone" color="#f59e0b" />
-                <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+              <div v-if="!task.done" class="flex items-center gap-1.5 flex-shrink-0">
+                <div class="flex items-center gap-0.5">
+                  <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+                  <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+                </div>
+                <button v-if="task.latitude != null"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
+                  @click.stop="goNavigate(task)">
+                  <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
+                </button>
               </div>
               <PhCheckCircle v-else :size="18" weight="duotone" color="#16a34a" />
             </div>
           </div>
         </div>
-      </template>
+    </template>
 
       <!-- Series task card -->
       <template v-else>
@@ -201,9 +209,17 @@
                 </p>
                 <p class="text-xs text-gray-400 mt-0.5">{{ task.taskDescription }}</p>
               </div>
-              <div v-if="!task.done" class="flex items-center gap-0.5">
-                <PhLightning :size="12" weight="duotone" color="#f59e0b" />
-                <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+              <div v-if="!task.done" class="flex items-center gap-1.5 flex-shrink-0">
+                <div class="flex items-center gap-0.5">
+                  <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+                  <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+                </div>
+                <button v-if="task.latitude != null"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
+                  @click.stop="goNavigate(task)">
+                  <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
+                </button>
               </div>
               <PhCheckCircle v-else :size="18" weight="duotone" :color="currentSeries?.color" />
             </div>
@@ -264,6 +280,14 @@
             Complete this task to earn +{{ selectedTask?.rewardPoint }} XP!
           </p>
         </div>
+        <!-- Navigate to task location -->
+        <button v-if="selectedTask?.latitude != null && !evalResult?.matched"
+          class="flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
+          style="background: #eff6ff; color: #2563eb; border: 2px solid #bfdbfe; border-bottom: 4px solid #93c5fd"
+          @click="goNavigate(selectedTask)">
+          <PhNavigationArrow :size="18" weight="duotone" color="#3b82f6" />
+          Navigate to Location
+        </button>
         <button v-if="!evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
           @click="triggerCamera">
@@ -290,12 +314,13 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
 import {
   PhSun, PhCloud, PhCloudRain, PhPawPrint, PhCompass, PhLightning,
-  PhTarget, PhCheckCircle, PhXCircle,
+  PhTarget, PhCheckCircle, PhXCircle, PhNavigationArrow,
   PhCamera, PhShuffle, PhStarFour, PhArrowsClockwise, PhSpinner,
   PhTree, PhBuildings, PhPaintBrush, PhCheck, PhCaretDown, PhX
 } from '@phosphor-icons/vue'
@@ -304,6 +329,7 @@ const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsi
 
 const authStore = useAuthStore()
 const weather = useWeatherStore()
+const router = useRouter()
 const userName = authStore.user?.displayName?.split(' ')[0] || 'Explorer'
 
 const mode = ref('random')
@@ -462,6 +488,19 @@ function completeTask() {
     || seriesTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
   if (task) task.done = true
   closeConfirm()
+}
+
+function goNavigate(task) {
+  if (task.latitude == null || task.longitude == null) return
+  router.push({
+    path: '/map',
+    query: {
+      navLat: String(task.latitude),
+      navLng: String(task.longitude),
+      navName: task.taskName,
+      navId: `task-${task.taskId}`,
+    }
+  })
 }
 
 onMounted(() => {

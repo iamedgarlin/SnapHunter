@@ -205,10 +205,18 @@
               </p>
             </div>
 
-            <!-- Reward -->
-            <div class="flex items-center gap-1 flex-shrink-0">
-              <PhLightning :size="12" weight="duotone" color="#f59e0b" />
-              <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+            <!-- Reward + Navigate -->
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <div class="flex items-center gap-0.5">
+                <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+                <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+              </div>
+              <button v-if="!task.done && task.latitude != null"
+                class="w-7 h-7 rounded-lg flex items-center justify-center"
+                style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
+                @click.stop="goNavigate(task)">
+                <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
+              </button>
               <PhCaretRight v-if="!task.done" :size="14" weight="bold" color="#cbd5e1" />
             </div>
           </div>
@@ -273,6 +281,15 @@
           </p>
         </div>
 
+        <!-- Navigate to task location -->
+        <button v-if="selectedTask?.latitude != null && !evalResult?.matched"
+          class="flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
+          style="background: #eff6ff; color: #2563eb; border: 2px solid #bfdbfe; border-bottom: 4px solid #93c5fd"
+          @click="goNavigate(selectedTask)">
+          <PhNavigationArrow :size="18" weight="duotone" color="#3b82f6" />
+          Navigate to Location
+        </button>
+
         <button v-if="!evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
           @click="triggerCamera">
@@ -298,14 +315,16 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import {
   PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
   PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush,
-  PhMapPin, PhCaretRight
+  PhMapPin, PhCaretRight, PhNavigationArrow
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
+const router = useRouter()
 
 const allTasks = ref([])
 const loadingTasks = ref(false)
@@ -512,6 +531,19 @@ function completeTask() {
   const task = allTasks.value.find(t => t.taskId === selectedTask.value.taskId)
   if (task) task.done = true
   closeConfirm()
+}
+
+function goNavigate(task) {
+  if (task.latitude == null || task.longitude == null) return
+  router.push({
+    path: '/map',
+    query: {
+      navLat: String(task.latitude),
+      navLng: String(task.longitude),
+      navName: task.taskName,
+      navId: `task-${task.taskId}`,
+    }
+  })
 }
 
 onMounted(() => {
