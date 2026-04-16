@@ -525,6 +525,13 @@ function initMap() {
 
   createHudControls()
 
+  // Event delegation: handle Cancel button clicks inside any Leaflet popup
+  map.getContainer().addEventListener('click', (e) => {
+    if (e.target.closest('.js-task-cancel')) {
+      clearRoute()
+    }
+  })
+
   if (hudDistEl) hudDistEl.textContent = fmtTrackDist()
 }
 
@@ -535,6 +542,23 @@ function parkPopupHtml(park) {
       <p style="font-size:11px;color:${park.unlocked ? '#16a34a' : '#94a3b8'};margin:0">
         ${park.unlocked ? '✓ Unlocked' : 'Visit to unlock'}
       </p>
+    </div>`
+}
+
+function taskPopupHtml(name, subtitle) {
+  const cameraSvg = `<svg width="11" height="11" viewBox="0 0 256 256" fill="none" style="display:inline-block;vertical-align:-1px;margin-right:3px"><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.72,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Z" fill="#3b82f6" opacity="0.2"/><path d="M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.72,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Z" fill="none" stroke="#3b82f6" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><circle cx="128" cy="132" r="36" fill="none" stroke="#3b82f6" stroke-width="16"/></svg>`
+  const xSvg = `<svg width="10" height="10" viewBox="0 0 256 256" fill="none" style="display:inline-block;vertical-align:-1px;margin-right:2px"><line x1="200" y1="56" x2="56" y2="200" stroke="#ef4444" stroke-width="28" stroke-linecap="round"/><line x1="200" y1="200" x2="56" y2="56" stroke="#ef4444" stroke-width="28" stroke-linecap="round"/></svg>`
+  const sub = subtitle || `${cameraSvg}Task location`
+  return `
+    <div style="font-family:sans-serif;text-align:center;padding:2px 0">
+      <p style="font-weight:900;font-size:12px;margin:0 0 2px;color:#1f2937">${name}</p>
+      <p style="font-size:10px;color:#3b82f6;margin:0 0 6px;line-height:1.2">${sub}</p>
+      <button class="js-task-cancel"
+        style="display:inline-flex;align-items:center;justify-content:center;gap:3px;
+          padding:3px 10px;border-radius:10px;border:1.5px solid #fecaca;border-bottom:2px solid #f87171;
+          background:#fef2f2;color:#ef4444;font-size:10px;font-weight:800;cursor:pointer;
+          font-family:sans-serif;outline:none"
+      >${xSvg}Cancel</button>
     </div>`
 }
 
@@ -658,12 +682,7 @@ async function toggleNavigation(target) {
   if (String(target.id).startsWith('task-')) {
     taskMarker = L.marker([target.lat, target.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 })
       .addTo(map)
-      .bindPopup(`
-        <div style="font-family:sans-serif;text-align:center;padding:4px 2px">
-          <p style="font-weight:900;font-size:13px;margin:0 0 2px">${target.name}</p>
-          <p style="font-size:11px;color:#3b82f6;margin:0">📸 Task location</p>
-        </div>`, { closeButton: false, offset: [0, -8] })
-      .openPopup()
+      .bindPopup(taskPopupHtml(target.name), { closeButton: false, offset: [0, -8], minWidth: 120 })
   }
 
   const { lat: uLat, lng: uLng } = userPos.value
@@ -701,7 +720,14 @@ async function toggleNavigation(target) {
     routeLayer.addTo(map)
 
     const bounds = L.latLngBounds(coords)
-    map.fitBounds(bounds, { padding: [60, 60] })
+    // Extra top padding (120px) to leave room for the task popup above the marker
+    const isTask = String(target.id).startsWith('task-')
+    map.fitBounds(bounds, { paddingTopLeft: [60, isTask ? 120 : 60], paddingBottomRight: [60, 60] })
+
+    // Open task popup after map settles so it's not clipped
+    if (isTask && taskMarker) {
+      map.once('moveend', () => taskMarker?.openPopup())
+    }
 
     const distKm = r.distance / 1000
     const durMin = Math.round(r.duration / 60)
@@ -813,12 +839,7 @@ function handleRouteQuery() {
           map.setView([target.lat, target.lng], 15)
           taskMarker = L.marker([target.lat, target.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 })
             .addTo(map)
-            .bindPopup(`
-              <div style="font-family:sans-serif;text-align:center;padding:4px 2px">
-                <p style="font-weight:900;font-size:13px;margin:0 0 2px">${target.name}</p>
-                <p style="font-size:11px;color:#3b82f6;margin:0">Waiting for GPS...</p>
-              </div>`, { closeButton: false, offset: [0, -8] })
-            .openPopup()
+            .bindPopup(taskPopupHtml(target.name, '<span style="color:#94a3b8">Waiting for GPS...</span>'), { closeButton: false, offset: [0, -8], minWidth: 120 })
 
           navigatingId.value = target.id
           // Retry when GPS arrives
