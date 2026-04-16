@@ -76,12 +76,12 @@ import {
 
 /* ─── Constants ─── */
 const UNLOCK_RADIUS_KM = 0.2
-const MIN_RECORD_DIST_M = 8
-const FOG_TRAIL_RADIUS_KM = 0.15
+const MIN_RECORD_DIST_M = 3          // ← 缩小到3m，记录更密集，路径更连续
+const FOG_TRAIL_RADIUS_KM = 0.015    // ← 15m ≈ 一条马路的宽度
 
 /* ─── State ─── */
 const parks = ref([
-  { id: 1,  name: 'Flagstaff Gardens',      lat: -37.8090, lng: 144.9520, unlocked: true,  distance: null },
+  { id: 1,  name: 'Flagstaff Gardens',      lat: -37.8090, lng: 144.9520, unlocked: false, distance: null },  // ← 改为 false
   { id: 2,  name: 'Fitzroy Gardens',         lat: -37.8136, lng: 144.9793, unlocked: true,  distance: null },
   { id: 3,  name: 'Royal Botanic Gardens',   lat: -37.8304, lng: 144.9799, unlocked: false, distance: null },
   { id: 4,  name: 'Carlton Gardens',         lat: -37.8033, lng: 144.9716, unlocked: false, distance: null },
@@ -224,7 +224,7 @@ const FogCanvas = L.Layer.extend({
     ctx.fillRect(0, 0, size.x, size.y)
     ctx.globalCompositeOperation = 'destination-out'
 
-    // 1) Unlocked parks (400m)
+    // 1) Unlocked parks — 400m reveal radius
     parks.value.filter(p => p.unlocked).forEach(pk => {
       const pt = m.latLngToContainerPoint([pk.lat, pk.lng])
       const r = Math.abs(m.latLngToContainerPoint([pk.lat + 0.4/111, pk.lng]).y - pt.y)
@@ -233,23 +233,49 @@ const FogCanvas = L.Layer.extend({
       ctx.beginPath(); ctx.arc(pt.x,pt.y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill()
     })
 
-    // 2) Trail (150m per point)
+    // 2) Trail — 街道宽度级别的探索揭雾
+    //    用连续线段 stroke 代替独立圆点，避免缝隙
     const pts = trailPoints.value
     if (pts.length > 0) {
       const b = m.getBounds()
-      const mLat = (b.getNorth()-b.getSouth())*0.2, mLng = (b.getEast()-b.getWest())*0.2
-      const south=b.getSouth()-mLat, north=b.getNorth()+mLat, west=b.getWest()-mLng, east=b.getEast()+mLng
-      for (let i=0; i<pts.length; i++) {
+      const mLat = (b.getNorth()-b.getSouth())*0.2
+      const mLng = (b.getEast()-b.getWest())*0.2
+
+      // 计算 trail 线条的像素宽度（基于 FOG_TRAIL_RADIUS_KM）
+      const refPt = m.latLngToContainerPoint([pts[0].lat, pts[0].lng])
+      const refPt2 = m.latLngToContainerPoint([pts[0].lat + FOG_TRAIL_RADIUS_KM/111, pts[0].lng])
+      const trailRadiusPx = Math.max(Math.abs(refPt2.y - refPt.y), 2)
+
+      // 用粗线条描绘路径 — 一笔画完所有连续点
+      ctx.lineCap = 'round'
+      ctx.lineJoin = 'round'
+      ctx.lineWidth = trailRadiusPx * 2  // 直径 = 2 × 半径
+      ctx.strokeStyle = 'rgba(0,0,0,1)'
+      ctx.fillStyle = 'rgba(0,0,0,1)'
+
+      ctx.beginPath()
+      let started = false
+      for (let i = 0; i < pts.length; i++) {
         const p = pts[i]
-        if (p.lat<south||p.lat>north||p.lng<west||p.lng>east) continue
-        const pt = m.latLngToContainerPoint([p.lat,p.lng])
-        const r = Math.abs(m.latLngToContainerPoint([p.lat+FOG_TRAIL_RADIUS_KM/111,p.lng]).y - pt.y)
-        if (r<1) continue
-        const g = ctx.createRadialGradient(pt.x,pt.y,0, pt.x,pt.y,r)
-        g.addColorStop(0,'rgba(0,0,0,1)'); g.addColorStop(0.7,'rgba(0,0,0,0.9)'); g.addColorStop(1,'rgba(0,0,0,0)')
-        ctx.beginPath(); ctx.arc(pt.x,pt.y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill()
+        const cp = m.latLngToContainerPoint([p.lat, p.lng])
+        if (!started) {
+          ctx.moveTo(cp.x, cp.y)
+          started = true
+        } else {
+          ctx.lineTo(cp.x, cp.y)
+        }
+      }
+      ctx.stroke()
+
+      // 也在每个点画一个小圆，保证起点和单点也有揭雾
+      if (pts.length === 1) {
+        const cp = m.latLngToContainerPoint([pts[0].lat, pts[0].lng])
+        ctx.beginPath()
+        ctx.arc(cp.x, cp.y, trailRadiusPx, 0, Math.PI * 2)
+        ctx.fill()
       }
     }
+
     ctx.globalCompositeOperation = 'source-over'
   },
   update() { this._redraw() }
@@ -257,18 +283,6 @@ const FogCanvas = L.Layer.extend({
 
 /* ─────────────────────────────────────────────
  *  HUD via L.Control
- *
- *  L.Control places DOM elements inside Leaflet's
- *  own control container, which sits in a div with
- *  class "leaflet-control-container". This container
- *  is a CHILD of the map div and has z-index: 800+
- *  by default — higher than all map panes including
- *  overlayPane (z-index 400) and popupPane (700).
- *
- *  Because controls live INSIDE Leaflet's stacking
- *  context, they are guaranteed to render above all
- *  tiles, overlays, markers, and our fog canvas.
- *  No fixed/absolute hacks, no GPU layer battles.
  * ───────────────────────────────────────────── */
 
 function createHudControls() {
@@ -495,8 +509,7 @@ onUnmounted(() => {
 
 <style>
 /* ═══════════════════════════════════
-   HUD ROOT RESET（关键）
-   只去掉默认背景，但保留布局
+   HUD ROOT RESET
    ═══════════════════════════════════ */
 #map :deep(.leaflet-control) {
   background: transparent !important;
@@ -505,8 +518,7 @@ onUnmounted(() => {
 }
 
 /* ═══════════════════════════════════
-   BADGE（左上 / 右上）
-   完全自带视觉，不依赖父层
+   BADGE
    ═══════════════════════════════════ */
 .leaflet-hud-badge {
   display: flex !important;
@@ -531,7 +543,7 @@ onUnmounted(() => {
 }
 
 /* ═══════════════════════════════════
-   按钮（右下）
+    BUTTON
    ═══════════════════════════════════ */
 .leaflet-hud-btn {
   width: 42px !important;
@@ -580,7 +592,7 @@ onUnmounted(() => {
 }
 
 /* ═══════════════════════════════════
-   UNLOCK 弹窗（保持不变，但微调阴影）
+   UNLOCK
    ═══════════════════════════════════ */
 .leaflet-hud-unlock {
   position: absolute !important;
@@ -609,7 +621,6 @@ onUnmounted(() => {
   font-family: var(--font-game), system-ui, sans-serif;
 }
 
-/* 动画保持 */
 .pop-anim {
   animation: leaflet-hud-pop 0.3s ease, leaflet-hud-fadeout 0.4s ease 2.4s forwards;
 }
@@ -626,7 +637,7 @@ onUnmounted(() => {
 </style>
 
 <style scoped>
-/* Leaflet popup overrides (scoped is fine here since #map is in template) */
+/* Leaflet popup overrides */
 #map :deep(.leaflet-popup-content-wrapper) {
   border-radius: 14px;
   border: 1.5px solid #e2e8f0;
@@ -640,5 +651,4 @@ onUnmounted(() => {
 #map :deep(.leaflet-top.leaflet-left .leaflet-control) { margin-left: 16px; margin-top: 16px; }
 #map :deep(.leaflet-top.leaflet-right .leaflet-control) { margin-right: 16px; margin-top: 16px; }
 #map :deep(.leaflet-bottom.leaflet-right .leaflet-control) { margin-right: 16px; margin-bottom: 16px; }
-
 </style>
