@@ -1,26 +1,87 @@
 <template>
   <div class="flex flex-col h-full" style="font-family: var(--font-game)">
 
+    <!-- Unlock animation overlay (fixed, above everything) -->
+    <Transition name="unlock-pop">
+      <div v-if="unlockAnim" class="unlock-overlay" @click="unlockAnim = null">
+        <div class="leaflet-hud-unlock-inner">
+          <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
+            <path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z"
+              fill="#16a34a" opacity="0.2"/>
+            <path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z"
+              fill="none" stroke="#16a34a" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="128" cy="104" r="32" fill="none" stroke="#16a34a" stroke-width="16"/>
+          </svg>
+          <p class="unlock-name">{{ unlockAnim.name }}</p>
+          <div class="unlock-xp">
+            <svg width="12" height="12" viewBox="0 0 256 256" fill="none">
+              <path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"
+                fill="#f59e0b" opacity="0.2"/>
+              <path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"
+                fill="none" stroke="#f59e0b" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>+50 XP</span>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Map -->
     <div class="relative" style="height: 55vh; flex-shrink: 0">
       <div id="map" class="w-full h-full"></div>
     </div>
 
     <!-- Parks list -->
-    <div class="flex-1 overflow-y-auto" style="background: #f0fdf4">
+    <div ref="parkListRef" class="flex-1 overflow-y-auto" style="background: #f0fdf4">
       <div class="px-4 pt-4 pb-6 flex flex-col gap-3">
 
         <!-- Route info bar (when navigating) -->
-        <div v-if="routeInfo" class="route-info-bar">
-          <div class="flex items-center gap-2 flex-1 min-w-0">
-            <PhPath :size="16" weight="duotone" color="#3b82f6" />
-            <span class="text-xs font-black text-blue-700 truncate">{{ routeInfo.name }}</span>
+        <div v-if="routeInfo" class="route-info-card"
+          :style="routeInfo.arrived
+            ? 'border-color: #bbf7d0; border-bottom-color: #34d399'
+            : ''">
+          <!-- Header row (always visible, clickable to toggle steps) -->
+          <div class="route-info-header" @click="routeStepsOpen = !routeStepsOpen">
+            <div class="flex items-center gap-2 flex-1 min-w-0">
+              <PhPath :size="16" weight="duotone" :color="routeInfo.arrived ? '#16a34a' : '#3b82f6'" />
+              <span class="text-xs font-black truncate"
+                :style="routeInfo.arrived ? 'color: #16a34a' : 'color: #1e40af'">
+                {{ routeInfo.name }}
+              </span>
+            </div>
+            <div class="flex items-center gap-3 flex-shrink-0">
+              <span v-if="routeInfo.arrived" class="text-xs font-black text-emerald-600">Arrived!</span>
+              <template v-else>
+                <span class="text-xs font-semibold text-gray-500">{{ routeInfo.distance }}</span>
+                <span class="text-xs font-semibold text-gray-500">~{{ routeInfo.duration }}</span>
+              </template>
+            </div>
+            <!-- Chevron toggle (only when steps exist and not arrived) -->
+            <PhCaretDown v-if="routeInfo.steps?.length && !routeInfo.arrived"
+              :size="14" weight="bold" color="#94a3b8"
+              class="flex-shrink-0 ml-1 transition-transform duration-200"
+              :style="routeStepsOpen ? 'transform: rotate(180deg)' : ''" />
           </div>
-          <div class="flex items-center gap-3 flex-shrink-0">
-            <span class="text-xs font-semibold text-gray-500">{{ routeInfo.distance }}</span>
-            <span class="text-xs font-semibold text-gray-500">~{{ routeInfo.duration }}</span>
+
+          <!-- Steps list (collapsible) -->
+          <div v-if="routeStepsOpen && routeInfo.steps?.length && !routeInfo.arrived" class="route-steps-list">
+            <div v-for="(step, i) in routeInfo.steps" :key="i" class="route-step-item">
+              <div class="route-step-icon">
+                <component :is="stepIcon(step.modifier)" :size="14" weight="bold" color="#3b82f6" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-bold text-gray-700 leading-tight">
+                  {{ step.instruction }}
+                </p>
+                <p v-if="step.name" class="text-xs text-gray-400 leading-tight mt-0.5">
+                  {{ step.name }}
+                </p>
+              </div>
+              <span class="text-xs font-semibold text-gray-400 flex-shrink-0">
+                {{ step.distanceText }}
+              </span>
+            </div>
           </div>
-          <button class="text-xs font-black text-red-400 flex-shrink-0 ml-2" @click="clearRoute">✕</button>
         </div>
 
         <div class="flex items-center justify-between">
@@ -65,13 +126,17 @@
             </div>
           </div>
 
+          <!-- Button: X to cancel nav, check on arrived, nav arrow otherwise -->
           <button
             class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
             :style="navigatingId === `park-${park.id}`
-              ? 'background: #fef2f2; border: 2px solid #fecaca; border-bottom: 3px solid #f87171'
+              ? (routeInfo?.arrived
+                  ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399'
+                  : 'background: #fef2f2; border: 2px solid #fecaca; border-bottom: 3px solid #f87171')
               : 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'"
             @click.stop="toggleNavigation({ lat: park.lat, lng: park.lng, name: park.name, id: `park-${park.id}` })">
-            <PhX v-if="navigatingId === `park-${park.id}`" :size="16" weight="bold" color="#ef4444" />
+            <PhCheck v-if="navigatingId === `park-${park.id}` && routeInfo?.arrived" :size="16" weight="bold" color="#16a34a" />
+            <PhX v-else-if="navigatingId === `park-${park.id}`" :size="16" weight="bold" color="#ef4444" />
             <PhNavigationArrow v-else :size="16" weight="duotone" color="#10b981" />
           </button>
         </div>
@@ -82,19 +147,23 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
   PhMapPin, PhLightning, PhNavigationArrow,
-  PhMapTrifold, PhTree, PhSealCheck, PhX, PhPath
+  PhMapTrifold, PhTree, PhSealCheck, PhX, PhPath, PhCheck, PhCheckCircle, PhXCircle,
+  PhCaretDown, PhArrowUp, PhArrowBendDownRight, PhArrowBendDownLeft,
+  PhArrowUUpRight, PhArrowUUpLeft, PhFlagCheckered, PhMapPinLine
 } from '@phosphor-icons/vue'
 
 /* ─── Constants ─── */
 const UNLOCK_RADIUS_KM = 0.2
 const MIN_RECORD_DIST_M = 3
 const FOG_TRAIL_RADIUS_KM = 0.015
+const ARRIVAL_RADIUS_KM = 0.05          // 50m = "arrived"
+const MAX_TRAIL_GAP_KM = 0.3            // max 300m between trail points before inserting a break
 
 /* ─── State ─── */
 const parks = ref([
@@ -112,9 +181,23 @@ const parks = ref([
 
 const userPos = ref(null)
 const trackDistanceKm = ref(0)
-const trailPoints = ref([])
+const trailPoints = ref([])              // now: Array of segments: [[{lat,lng}, ...], [{lat,lng}, ...]]
 const navigatingId = ref(null)
 const routeInfo = ref(null)
+const parkListRef = ref(null)
+const unlockAnim = ref(null)            // { name } when showing unlock animation
+const routeStepsOpen = ref(false)       // whether step-by-step list is expanded
+
+/* ─── Step icon mapping ─── */
+function stepIcon(modifier) {
+  if (!modifier) return PhArrowUp
+  if (modifier.includes('left') && modifier.includes('uturn')) return PhArrowUUpLeft
+  if (modifier.includes('right') && modifier.includes('uturn')) return PhArrowUUpRight
+  if (modifier.includes('left')) return PhArrowBendDownLeft
+  if (modifier.includes('right')) return PhArrowBendDownRight
+  if (modifier === 'straight') return PhArrowUp
+  return PhArrowUp
+}
 
 let map = null
 let userMarker = null
@@ -125,7 +208,6 @@ let taskMarker = null
 const parkMarkers = {}
 
 let hudDistEl = null
-let hudUnlockEl = null
 let unlockTimer = null
 
 /* ─── Vue Router ─── */
@@ -157,13 +239,22 @@ function fmtTrackDist() {
 
 const formatTrackDistance = computed(() => fmtTrackDist())
 
-const sortedParks = computed(() =>
-  [...parks.value].sort((a, b) => {
+const sortedParks = computed(() => {
+  const sorted = [...parks.value].sort((a, b) => {
     if (a.distance === null) return 1
     if (b.distance === null) return -1
     return a.distance - b.distance
   })
-)
+  // Pin the navigating park to the top of the list
+  if (navigatingId.value) {
+    const idx = sorted.findIndex(p => `park-${p.id}` === navigatingId.value)
+    if (idx > 0) {
+      const [pinned] = sorted.splice(idx, 1)
+      sorted.unshift(pinned)
+    }
+  }
+  return sorted
+})
 
 const unlockedCount = computed(() => parks.value.filter(p => p.unlocked).length)
 
@@ -171,7 +262,7 @@ watch(trackDistanceKm, () => {
   if (hudDistEl) hudDistEl.textContent = fmtTrackDist()
 })
 
-/* ─── Trail persistence ─── */
+/* ─── Trail persistence (multi-segment) ─── */
 function persistTrail() {
   try {
     localStorage.setItem('snaphunter_trail', JSON.stringify(trailPoints.value))
@@ -182,22 +273,56 @@ function persistTrail() {
 function loadTrail() {
   try {
     const raw = localStorage.getItem('snaphunter_trail')
-    if (raw) trailPoints.value = JSON.parse(raw)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      // Migration: old format was flat array [{lat,lng},...], new is segments [[{lat,lng},...],...]
+      if (parsed.length > 0 && !Array.isArray(parsed[0])) {
+        // Old flat format → wrap in a single segment
+        trailPoints.value = [parsed]
+      } else {
+        trailPoints.value = parsed
+      }
+    }
     const km = localStorage.getItem('snaphunter_trail_km')
     if (km) trackDistanceKm.value = parseFloat(km) || 0
   } catch (e) { /* ignore */ }
 }
 
+function getLastTrailPoint() {
+  const segs = trailPoints.value
+  if (segs.length === 0) return null
+  const lastSeg = segs[segs.length - 1]
+  if (!lastSeg || lastSeg.length === 0) return null
+  return lastSeg[lastSeg.length - 1]
+}
+
 function addTrailPoint(lat, lng) {
-  const pts = trailPoints.value
-  if (pts.length > 0) {
-    const last = pts[pts.length - 1]
-    const distM = haversine(last.lat, last.lng, lat, lng) * 1000
+  const segs = trailPoints.value
+  const lastPt = getLastTrailPoint()
+
+  if (lastPt) {
+    const distKm = haversine(lastPt.lat, lastPt.lng, lat, lng)
+    const distM = distKm * 1000
+
+    // Too close — skip
     if (distM < MIN_RECORD_DIST_M) return false
-    trackDistanceKm.value += distM / 1000
+
+    // If gap is too large (phone slept / background), start a new segment
+    if (distKm > MAX_TRAIL_GAP_KM) {
+      segs.push([{ lat, lng }])
+    } else {
+      // Normal: append to current segment
+      trackDistanceKm.value += distKm
+      segs[segs.length - 1].push({ lat, lng })
+    }
+  } else {
+    // First point ever — start first segment
+    segs.push([{ lat, lng }])
   }
-  pts.push({ lat, lng })
-  if (pts.length % 10 === 0) persistTrail()
+
+  // Persist every 10 total points
+  const totalPts = segs.reduce((n, s) => n + s.length, 0)
+  if (totalPts % 10 === 0) persistTrail()
   return true
 }
 
@@ -270,38 +395,44 @@ const FogCanvas = L.Layer.extend({
       ctx.beginPath(); ctx.arc(pt.x,pt.y,r,0,Math.PI*2); ctx.fillStyle=g; ctx.fill()
     })
 
-    // 2) Trail — street-width fog reveal
-    const pts = trailPoints.value
-    if (pts.length > 0) {
-      const refPt = m.latLngToContainerPoint([pts[0].lat, pts[0].lng])
-      const refPt2 = m.latLngToContainerPoint([pts[0].lat + FOG_TRAIL_RADIUS_KM/111, pts[0].lng])
-      const trailRadiusPx = Math.max(Math.abs(refPt2.y - refPt.y), 2)
+    // 2) Trail — street-width fog reveal (multi-segment)
+    const segs = trailPoints.value
+    if (segs.length > 0) {
+      // Calculate trail radius in pixels
+      const firstSeg = segs.find(s => s.length > 0)
+      if (firstSeg) {
+        const refPt = m.latLngToContainerPoint([firstSeg[0].lat, firstSeg[0].lng])
+        const refPt2 = m.latLngToContainerPoint([firstSeg[0].lat + FOG_TRAIL_RADIUS_KM/111, firstSeg[0].lng])
+        const trailRadiusPx = Math.max(Math.abs(refPt2.y - refPt.y), 2)
 
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-      ctx.lineWidth = trailRadiusPx * 2
-      ctx.strokeStyle = 'rgba(0,0,0,1)'
-      ctx.fillStyle = 'rgba(0,0,0,1)'
+        ctx.lineCap = 'round'
+        ctx.lineJoin = 'round'
+        ctx.lineWidth = trailRadiusPx * 2
+        ctx.strokeStyle = 'rgba(0,0,0,1)'
+        ctx.fillStyle = 'rgba(0,0,0,1)'
 
-      ctx.beginPath()
-      let started = false
-      for (let i = 0; i < pts.length; i++) {
-        const p = pts[i]
-        const cp = m.latLngToContainerPoint([p.lat, p.lng])
-        if (!started) {
-          ctx.moveTo(cp.x, cp.y)
-          started = true
-        } else {
-          ctx.lineTo(cp.x, cp.y)
+        // Draw each segment separately (no straight lines between segments)
+        for (const seg of segs) {
+          if (seg.length === 0) continue
+
+          if (seg.length === 1) {
+            const cp = m.latLngToContainerPoint([seg[0].lat, seg[0].lng])
+            ctx.beginPath()
+            ctx.arc(cp.x, cp.y, trailRadiusPx, 0, Math.PI * 2)
+            ctx.fill()
+          } else {
+            ctx.beginPath()
+            for (let i = 0; i < seg.length; i++) {
+              const cp = m.latLngToContainerPoint([seg[i].lat, seg[i].lng])
+              if (i === 0) {
+                ctx.moveTo(cp.x, cp.y)
+              } else {
+                ctx.lineTo(cp.x, cp.y)
+              }
+            }
+            ctx.stroke()
+          }
         }
-      }
-      ctx.stroke()
-
-      if (pts.length === 1) {
-        const cp = m.latLngToContainerPoint([pts[0].lat, pts[0].lng])
-        ctx.beginPath()
-        ctx.arc(cp.x, cp.y, trailRadiusPx, 0, Math.PI * 2)
-        ctx.fill()
       }
     }
 
@@ -318,11 +449,12 @@ function createHudControls() {
     onAdd() {
       const el = L.DomUtil.create('div', 'leaflet-hud-badge')
       el.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 256 256" fill="none">
-          <path d="M228.92,49.69a8,8,0,0,0-6.86-1.45L160.93,63.52,99.58,32.84a8,8,0,0,0-5.52-.6l-64,16A8,8,0,0,0,24,56V200a8,8,0,0,0,9.94,7.76l60.06-15,61.35,30.68A8,8,0,0,0,160,224a8.43,8.43,0,0,0,1.73-.19l64-16A8,8,0,0,0,232,200V56A8,8,0,0,0,228.92,49.69Z"
-            fill="#10b981" opacity="0.2"/>
-          <path d="M228.92,49.69a8,8,0,0,0-6.86-1.45L160.93,63.52,99.58,32.84a8,8,0,0,0-5.52-.6l-64,16A8,8,0,0,0,24,56V200a8,8,0,0,0,9.94,7.76l60.06-15,61.35,30.68A8,8,0,0,0,160,224a8.43,8.43,0,0,0,1.73-.19l64-16A8,8,0,0,0,232,200V56A8,8,0,0,0,228.92,49.69ZM96,176a8,8,0,0,0-1.73.19L40,190.71V61.29l56-14V152a8,8,0,0,0,0,16Zm64,18.71-48-24V65.29l48,24ZM216,194.71l-40,10V99.29"
-            fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg width="14" height="14" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="24" y="48" width="208" height="160" rx="8" fill="#10b981" opacity="0.2"/>
+          <rect x="24" y="48" width="208" height="160" rx="8" fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="96" y1="48" x2="96" y2="208" stroke="#10b981" stroke-width="16" stroke-linecap="round"/>
+          <line x1="160" y1="48" x2="160" y2="208" stroke="#10b981" stroke-width="16" stroke-linecap="round"/>
+          <polyline points="96,128 128,96 160,128" fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span>Victoria, AU</span>`
       L.DomEvent.disableClickPropagation(el)
@@ -346,12 +478,12 @@ function createHudControls() {
     onAdd() {
       const el = L.DomUtil.create('div', 'leaflet-hud-btn')
       el.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 256 256" fill="none">
-          <path d="M213.49,101.07l-128-80a12,12,0,0,0-13.16.65A12,12,0,0,0,68,32V224a12,12,0,0,0,4.33,9.28,12,12,0,0,0,13.16.65l128-80a12,12,0,0,0,0-20.43Z"
+        <svg width="18" height="18" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M224,120,48,24a8,8,0,0,0-11.6,9.6L68,128,36.4,222.4A8,8,0,0,0,48,232l176-96a8,8,0,0,0,0-14Z"
             fill="#10b981" opacity="0.2"/>
-          <path d="M234.35,114.35l-128-80A12,12,0,0,0,88,44V212a12,12,0,0,0,18.35,10.18l128-84a12,12,0,0,0,0-20.36Z"
-            fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"
-            transform="rotate(-45 128 128)"/>
+          <path d="M224,120,48,24a8,8,0,0,0-11.6,9.6L68,128,36.4,222.4A8,8,0,0,0,48,232l176-96a8,8,0,0,0,0-14Z"
+            fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="68" y1="128" x2="224" y2="128" fill="none" stroke="#10b981" stroke-width="16" stroke-linecap="round"/>
         </svg>`
       el.style.cursor = 'pointer'
       L.DomEvent.disableClickPropagation(el)
@@ -360,53 +492,16 @@ function createHudControls() {
     }
   })
 
-  const UnlockControl = L.Control.extend({
-    options: { position: 'topleft' },
-    onAdd() {
-      const el = L.DomUtil.create('div', 'leaflet-hud-unlock')
-      el.style.display = 'none'
-      hudUnlockEl = el
-      L.DomEvent.disableClickPropagation(el)
-      return el
-    }
-  })
-
   new BadgeControl().addTo(map)
   new DistControl().addTo(map)
   new CenterControl().addTo(map)
-  new UnlockControl().addTo(map)
 }
 
 function showUnlockAnim(park) {
-  if (!hudUnlockEl) return
-  hudUnlockEl.innerHTML = `
-    <div class="leaflet-hud-unlock-inner">
-      <svg width="24" height="24" viewBox="0 0 256 256" fill="none">
-        <path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z"
-          fill="#16a34a" opacity="0.2"/>
-        <path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z"
-          fill="none" stroke="#16a34a" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="128" cy="104" r="32" fill="none" stroke="#16a34a" stroke-width="16"/>
-      </svg>
-      <p class="unlock-name">${park.name}</p>
-      <div class="unlock-xp">
-        <svg width="12" height="12" viewBox="0 0 256 256" fill="none">
-          <path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"
-            fill="#f59e0b" opacity="0.2"/>
-          <path d="M213.85,125.46l-112,120a8,8,0,0,1-13.69-7l14.66-73.33L45.19,143.49a8,8,0,0,1-3-13l112-120a8,8,0,0,1,13.69,7L153.18,90.9l57.63,21.61a8,8,0,0,1,3,12.95Z"
-            fill="none" stroke="#f59e0b" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span>+50 XP</span>
-      </div>
-    </div>`
-  hudUnlockEl.style.display = 'block'
-  hudUnlockEl.classList.remove('pop-anim')
-  void hudUnlockEl.offsetWidth
-  hudUnlockEl.classList.add('pop-anim')
-
+  unlockAnim.value = { name: park.name }
   clearTimeout(unlockTimer)
   unlockTimer = setTimeout(() => {
-    hudUnlockEl.style.display = 'none'
+    unlockAnim.value = null
   }, 3000)
 }
 
@@ -433,21 +528,28 @@ function initMap() {
   if (hudDistEl) hudDistEl.textContent = fmtTrackDist()
 }
 
+function parkPopupHtml(park) {
+  return `
+    <div style="font-family:sans-serif;text-align:center;padding:4px 2px">
+      <p style="font-weight:900;font-size:13px;margin:0 0 2px">${park.name}</p>
+      <p style="font-size:11px;color:${park.unlocked ? '#16a34a' : '#94a3b8'};margin:0">
+        ${park.unlocked ? '✓ Unlocked' : 'Visit to unlock'}
+      </p>
+    </div>`
+}
+
 function addParkMarker(park) {
   const marker = L.marker([park.lat, park.lng], { icon: makePinIcon(park.unlocked) })
     .addTo(map)
-    .bindPopup(`
-      <div style="font-family:sans-serif;text-align:center;padding:4px 2px">
-        <p style="font-weight:900;font-size:13px;margin:0 0 2px">${park.name}</p>
-        <p style="font-size:11px;color:${park.unlocked ? '#16a34a' : '#94a3b8'};margin:0">
-          ${park.unlocked ? '✓ Unlocked' : 'Visit to unlock'}
-        </p>
-      </div>`, { closeButton: false, offset: [0, -8] })
+    .bindPopup(parkPopupHtml(park), { closeButton: false, offset: [0, -8] })
   parkMarkers[park.id] = marker
 }
 
 function refreshMarker(park) {
-  parkMarkers[park.id]?.setIcon(makePinIcon(park.unlocked))
+  const marker = parkMarkers[park.id]
+  if (!marker) return
+  marker.setIcon(makePinIcon(park.unlocked))
+  marker.setPopupContent(parkPopupHtml(park))
 }
 
 /* ─── Geolocation ─── */
@@ -474,6 +576,9 @@ function startTracking() {
       checkUnlocks(lat, lng)
       const added = addTrailPoint(lat, lng)
       if (added) fogOverlay?.update()
+
+      // Check arrival at navigation destination
+      checkArrival(lat, lng)
     },
     err => console.warn('Geo error:', err),
     { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
@@ -492,6 +597,25 @@ function checkUnlocks(lat, lng) {
     }
   })
   if (anyNew) fogOverlay?.update()
+}
+
+/* ─── Arrival detection ─── */
+let navTarget = null   // store the current navigation target coords
+
+function checkArrival(lat, lng) {
+  if (!navTarget || !navigatingId.value) return
+  if (routeInfo.value?.arrived) return  // already arrived
+
+  const distToTarget = haversine(lat, lng, navTarget.lat, navTarget.lng)
+  if (distToTarget <= ARRIVAL_RADIUS_KM) {
+    // Mark as arrived
+    routeInfo.value = {
+      ...routeInfo.value,
+      arrived: true,
+    }
+    // Remove the route line (keep the bar visible as "arrived")
+    if (routeLayer) { routeLayer.remove(); routeLayer = null }
+  }
 }
 
 function centerOnUser() {
@@ -523,6 +647,12 @@ async function toggleNavigation(target) {
 
   clearRoute()
   navigatingId.value = target.id
+  navTarget = { lat: target.lat, lng: target.lng }
+
+  // Scroll park list to top so the pinned card is visible
+  nextTick(() => {
+    parkListRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+  })
 
   // Add a blue task marker if this is a task (not a park)
   if (String(target.id).startsWith('task-')) {
@@ -537,7 +667,7 @@ async function toggleNavigation(target) {
   }
 
   const { lat: uLat, lng: uLng } = userPos.value
-  const url = `https://router.project-osrm.org/route/v1/foot/${uLng},${uLat};${target.lng},${target.lat}?overview=full&geometries=geojson&steps=false`
+  const url = `https://router.project-osrm.org/route/v1/foot/${uLng},${uLat};${target.lng},${target.lat}?overview=full&geometries=geojson&steps=true`
 
   try {
     const res = await fetch(url)
@@ -575,11 +705,78 @@ async function toggleNavigation(target) {
 
     const distKm = r.distance / 1000
     const durMin = Math.round(r.duration / 60)
+
+    // Parse turn-by-turn steps
+    const steps = []
+    if (r.legs?.[0]?.steps) {
+      for (const s of r.legs[0].steps) {
+        if (s.maneuver?.type === 'arrive') {
+          steps.push({
+            instruction: 'Arrive at destination',
+            name: target.name,
+            modifier: null,
+            distanceText: '',
+            type: 'arrive',
+          })
+          continue
+        }
+        const distM = s.distance
+        const distText = distM < 1000 ? `${Math.round(distM)}m` : `${(distM / 1000).toFixed(1)}km`
+        const maneuver = s.maneuver || {}
+        let instruction = ''
+        switch (maneuver.type) {
+          case 'depart':
+            instruction = 'Head ' + (maneuver.modifier || 'forward')
+            break
+          case 'turn':
+            instruction = 'Turn ' + (maneuver.modifier || '').replace('sharp ', 'sharply ')
+            break
+          case 'new name':
+          case 'continue':
+            instruction = maneuver.modifier === 'straight'
+              ? 'Continue straight'
+              : 'Continue ' + (maneuver.modifier || '')
+            break
+          case 'fork':
+            instruction = 'At the fork, keep ' + (maneuver.modifier || 'going')
+            break
+          case 'end of road':
+            instruction = 'At the end of road, turn ' + (maneuver.modifier || '')
+            break
+          case 'roundabout':
+          case 'rotary':
+            instruction = 'Enter roundabout, exit ' + (maneuver.modifier || '')
+            break
+          default:
+            instruction = maneuver.modifier
+              ? maneuver.type + ' ' + maneuver.modifier
+              : maneuver.type || 'Continue'
+            break
+        }
+        // Capitalize first letter
+        instruction = instruction.charAt(0).toUpperCase() + instruction.slice(1)
+
+        steps.push({
+          instruction,
+          name: s.name || '',
+          modifier: maneuver.modifier || '',
+          distanceText: distText,
+          type: maneuver.type,
+        })
+      }
+    }
+
     routeInfo.value = {
       name: target.name,
       distance: distKm < 1 ? `${Math.round(distKm * 1000)}m` : `${distKm.toFixed(1)}km`,
       duration: durMin < 60 ? `${durMin} min` : `${Math.floor(durMin/60)}h ${durMin%60}m`,
+      arrived: false,
+      steps,
     }
+    routeStepsOpen.value = false
+
+    // Immediately check if already within arrival radius
+    checkArrival(uLat, uLng)
 
   } catch (err) {
     console.error('OSRM fetch error:', err)
@@ -592,6 +789,8 @@ function clearRoute() {
   if (taskMarker) { taskMarker.remove(); taskMarker = null }
   navigatingId.value = null
   routeInfo.value = null
+  routeStepsOpen.value = false
+  navTarget = null
 }
 
 /* ─── Handle deep-link from Home / Tasks ─── */
@@ -719,13 +918,16 @@ onUnmounted(() => {
 .leaflet-hud-dist { color: #059669 !important; }
 
 /* ═══════════════════════════════════
-   UNLOCK
+   UNLOCK OVERLAY (fixed, above everything)
    ═══════════════════════════════════ */
-.leaflet-hud-unlock {
-  position: absolute !important;
-  left: 50% !important; top: 50% !important;
-  transform: translate(-50%, -50%) !important;
-  pointer-events: none !important;
+.unlock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
 }
 .leaflet-hud-unlock-inner {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
@@ -735,12 +937,29 @@ onUnmounted(() => {
   box-shadow: 0 12px 32px rgba(0,0,0,0.18);
   font-family: var(--font-game), system-ui, sans-serif;
 }
-.pop-anim { animation: leaflet-hud-pop 0.3s ease, leaflet-hud-fadeout 0.4s ease 2.4s forwards; }
-@keyframes leaflet-hud-pop {
-  from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
-  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+.unlock-name {
+  font-weight: 900; font-size: 14px; color: #1f2937; margin: 0;
 }
-@keyframes leaflet-hud-fadeout { from { opacity: 1; } to { opacity: 0; } }
+.unlock-xp {
+  display: flex; align-items: center; gap: 4px;
+  font-weight: 900; font-size: 13px; color: #d97706;
+}
+
+/* Vue Transition for unlock popup */
+.unlock-pop-enter-active {
+  animation: unlock-scale-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.unlock-pop-leave-active {
+  animation: unlock-fade-out 0.4s ease forwards;
+}
+@keyframes unlock-scale-in {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+@keyframes unlock-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 
 /* ═══════════════════════════════════
    Route line animation
@@ -749,15 +968,38 @@ onUnmounted(() => {
 @keyframes route-dash-march { to { stroke-dashoffset: -20; } }
 
 /* ═══════════════════════════════════
-   Route info bar
+   Route info card (collapsible)
    ═══════════════════════════════════ */
-.route-info-bar {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 14px; border-radius: 16px;
+.route-info-card {
+  border-radius: 16px;
   background: white;
   border: 2px solid #bfdbfe; border-bottom: 3px solid #60a5fa;
   box-shadow: 0 2px 8px rgba(59,130,246,0.1);
   font-family: var(--font-game), system-ui, sans-serif;
+  overflow: hidden;
+}
+.route-info-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.route-steps-list {
+  border-top: 1.5px solid #e0ecff;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.route-step-item {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 8px 14px;
+}
+.route-step-item + .route-step-item {
+  border-top: 1px solid #f1f5f9;
+}
+.route-step-icon {
+  width: 24px; height: 24px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  background: #eff6ff; flex-shrink: 0; margin-top: 1px;
 }
 </style>
 
