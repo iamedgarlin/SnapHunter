@@ -47,7 +47,7 @@ public class TaskRepository {
         });
     }
 
-    public List<TaskDTO> findTasksBySeries(Integer seriesId) {
+    public List<TaskDTO> findRandomTasksBySeries(Integer seriesId) {
         String sql = """
             SELECT
                 task_id,
@@ -60,7 +60,39 @@ public class TaskRepository {
                 reward_point
             FROM task
             WHERE series_id = ?
-            and is_active = true
+            AND is_active = true
+            ORDER BY RAND()
+            LIMIT 3
+            """;
+        
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            TaskDTO task = new TaskDTO();
+            task.setTaskId(rs.getInt("task_id"));
+            task.setSeriesId(rs.getInt("series_id"));
+            task.setTaskName(rs.getString("task_name"));
+            task.setTaskDescription(rs.getString("task_description"));
+            task.setLatitude(rs.getDouble("latitude"));
+            task.setLongitude(rs.getDouble("longitude"));
+            task.setBaseDifficulty(rs.getInt("base_difficulty"));
+            task.setRewardPoint(rs.getInt("reward_point"));
+            return task;
+        }, seriesId);
+    }
+
+    public List<TaskDTO> findAllTasksBySeries(Integer seriesId) {
+        String sql = """
+            SELECT
+                task_id,
+                series_id,
+                task_name,
+                task_description,
+                latitude,
+                longitude,
+                base_difficulty,
+                reward_point
+            FROM task
+            WHERE series_id = ?
+            AND is_active = true
             """;
         
         return jdbcTemplate.query(sql, (rs, rowNum) -> {

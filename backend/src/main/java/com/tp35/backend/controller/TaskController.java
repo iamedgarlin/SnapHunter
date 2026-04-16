@@ -32,5 +32,12 @@ public class TaskController {
         @RequestParam Integer seriesId
 ) {
         return ResponseEntity.ok(taskService.getRandomTasksBySeries(seriesId));
-}
+    }
+
+    @GetMapping("/series/all")
+    public ResponseEntity<List<TaskDTO>> getAllTasksBySeries(
+        @RequestParam Integer seriesId
+) {
+        return ResponseEntity.ok(taskService.getAllTasksBySeries(seriesId));
+    }
 }
