@@ -21,6 +21,10 @@ public class TaskService {
     }
 
     public List<TaskDTO> getRandomTasksBySeries(Integer seriesId) {
-        return taskRepository.findTasksBySeries(seriesId);
+        return taskRepository.findRandomTasksBySeries(seriesId);
+    }
+
+    public List<TaskDTO> getAllTasksBySeries(Integer seriesId) {
+        return taskRepository.findAllTasksBySeries(seriesId);
     }
 }
