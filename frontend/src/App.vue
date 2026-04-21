@@ -30,7 +30,7 @@ import { ref, computed, watch } from 'vue'
 import { RouterView, RouterLink, useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import {
-  PhHouseSimple, PhCompass, PhMapTrifold, PhMedal, PhUser
+  PhHouseSimple, PhCompass, PhStamp, PhMedal, PhUser
 } from '@phosphor-icons/vue'
 
 const route = useRoute()
@@ -50,10 +50,10 @@ const showTabBar = computed(() =>
 )
 
 const tabs = [
-  { path: '/home',    label: 'Home',    icon: PhHouseSimple },
-  { path: '/tasks',   label: 'Quests',  icon: PhCompass },
-  { path: '/map',     label: 'Map',     icon: PhMapTrifold },
-  { path: '/badges',  label: 'Badges',  icon: PhMedal },
-  { path: '/profile', label: 'Profile', icon: PhUser },
+  { path: '/home',    label: 'Home',        icon: PhHouseSimple },
+  { path: '/map',     label: 'Discovery',   icon: PhCompass },
+  { path: '/badges',  label: 'Badges',      icon: PhMedal },
+  { path: '/tasks',   label: 'Collection',  icon: PhStamp },
+  { path: '/profile', label: 'Profile',     icon: PhUser },
 ]
 </script>
