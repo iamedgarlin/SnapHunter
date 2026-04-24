@@ -98,9 +98,14 @@
         </div>
 
         <!-- ═══ Epic Parks ═══ -->
-        <div v-if="epicParks.length" class="flex items-center gap-1.5 mt-1">
-          <PhCastleTurret :size="16" weight="duotone" color="#7c3aed" />
-          <p class="text-sm font-black text-violet-700">Epic Parks</p>
+        <div v-if="epicParks.length" class="flex items-center justify-between mt-1">
+          <div class="flex items-center gap-1.5">
+            <PhCastleTurret :size="16" weight="duotone" color="#7c3aed" />
+            <p class="text-sm font-black text-violet-700">Epic Parks</p>
+          </div>
+          <span class="text-xs font-black text-violet-600 bg-violet-100 rounded-xl px-2 py-1">
+            {{ epicUnlockedCount }} / {{ epicParks.length }} unlocked
+          </span>
         </div>
 
         <div v-for="ep in epicParks" :key="'epic-' + ep.id"
@@ -186,12 +191,16 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
+import { useProgressStore } from '../stores/progress'
+import { trackEvent } from '../services/analytics'
 import {
   PhNavigationArrow, PhTree, PhSealCheck, PhX, PhPath, PhCheck,
   PhCaretDown, PhArrowUp, PhArrowBendDownRight, PhArrowBendDownLeft,
   PhArrowUUpRight, PhArrowUUpLeft, PhCastleTurret, PhCompass,
   PhSpeakerHigh, PhSpeakerSlash
 } from '@phosphor-icons/vue'
+
+const PARKS_UNLOCK_KEY = 'snaphunter_parks_unlocked'
 
 const UNLOCK_RADIUS_KM = 0.2
 const ARRIVAL_RADIUS_KM = 0.05
@@ -248,6 +257,20 @@ let navTarget = null
 
 const route = useRoute()
 const router = useRouter()
+const progressStore = useProgressStore()
+
+/* ─── Unlock persistence ─── */
+function loadUnlockedParks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PARKS_UNLOCK_KEY) || '[]')
+    const set = new Set(saved)
+    parks.value.forEach(p => { if (set.has(p.id)) p.unlocked = true })
+  } catch { /* ignore */ }
+}
+function saveUnlockedParks() {
+  const ids = parks.value.filter(p => p.unlocked).map(p => p.id)
+  localStorage.setItem(PARKS_UNLOCK_KEY, JSON.stringify(ids))
+}
 
 /* ─── Helpers ─── */
 function haversine(a, b, c, d) {
@@ -294,7 +317,8 @@ const sortedNearbyParks = computed(() => {
   }
   return sorted
 })
-const unlockedCount = computed(() => parks.value.filter(p => p.unlocked).length)
+const unlockedCount = computed(() => parks.value.filter(p => p.unlocked && !EPIC_PARKS_DATA[p.id]).length)
+const epicUnlockedCount = computed(() => parks.value.filter(p => p.unlocked && EPIC_PARKS_DATA[p.id]).length)
 
 /* ─── Map pin icons ─── */
 function makePinIcon(unlocked, isEpic) {
@@ -408,7 +432,13 @@ function checkUnlocks(lat, lng) {
   parks.value.forEach(park => {
     if (park.unlocked) return
     if (haversine(lat, lng, park.lat, park.lng) <= UNLOCK_RADIUS_KM) {
-      park.unlocked = true; refreshMarker(park); showUnlockAnim(park)
+      park.unlocked = true
+      refreshMarker(park)
+      showUnlockAnim(park)
+      saveUnlockedParks()
+      progressStore.visitPark()
+      progressStore.addXp(50)
+      trackEvent('park_unlocked', { parkId: park.id, parkName: park.name })
     }
   })
 }
@@ -532,7 +562,13 @@ function handleRouteQuery() {
   }
 }
 
-onMounted(() => { initMap(); startTracking(); handleRouteQuery() })
+onMounted(() => {
+  progressStore.init()
+  loadUnlockedParks()
+  initMap()
+  startTracking()
+  handleRouteQuery()
+})
 onUnmounted(() => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId)
   clearTimeout(unlockTimer); clearRoute(); map?.remove()
