@@ -39,30 +39,34 @@
           <div class="flex items-center gap-2">
             <div class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-base"
               style="background: linear-gradient(135deg, #f59e0b, #ef4444); border-bottom: 3px solid #b45309">
-              3
+              {{ progressStore.level }}
             </div>
             <div>
               <p class="text-xs font-black text-gray-500 uppercase tracking-wide">Level</p>
               <div class="flex items-center gap-1">
                 <PhCompass :size="14" weight="duotone" color="#10b981" />
-                <p class="text-sm font-black text-gray-800">Explorer</p>
+                <p class="text-sm font-black text-gray-800">{{ progressStore.levelTitle }}</p>
               </div>
             </div>
           </div>
           <div class="flex items-center gap-1">
             <PhLightning :size="14" weight="duotone" color="#f59e0b" />
-            <p class="text-xs font-black text-amber-500">240 / 300 XP</p>
+            <p class="text-xs font-black text-amber-500">
+              {{ progressStore.xpInCurrentLevel }} / {{ progressStore.xpNeededForLevel }} XP
+            </p>
           </div>
         </div>
         <div class="h-4 rounded-full overflow-hidden border-2 border-gray-200" style="background: #f1f5f9">
-          <div class="h-full rounded-full relative"
-            style="width: 80%; background: linear-gradient(to right, #fbbf24, #f59e0b)">
-            <div class="absolute right-2 top-0 h-full flex items-center">
-              <span class="text-white text-xs font-black">80%</span>
+          <div class="h-full rounded-full relative transition-all duration-500"
+            :style="`width: ${progressStore.xpPercent}%; background: linear-gradient(to right, #fbbf24, #f59e0b)`">
+            <div v-if="progressStore.xpPercent >= 15" class="absolute right-2 top-0 h-full flex items-center">
+              <span class="text-white text-xs font-black">{{ progressStore.xpPercent }}%</span>
             </div>
           </div>
         </div>
-        <p class="text-xs font-semibold text-gray-400 mt-1.5">60 XP to next level</p>
+        <p class="text-xs font-semibold text-gray-400 mt-1.5">
+          {{ progressStore.xpNeededForLevel - progressStore.xpInCurrentLevel }} XP to next level
+        </p>
       </div>
 
       <!-- Mode toggle + series dropdown -->
@@ -122,11 +126,16 @@
               <span class="text-xs font-black text-emerald-700 bg-emerald-100 rounded-xl px-2 py-1">
                 {{ completedRandomCount }} / {{ randomTasks.length }}
               </span>
-              <button @click="fetchRandomTasks"
-                class="w-7 h-7 rounded-xl flex items-center justify-center"
-                style="background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac">
-                <PhArrowsClockwise :size="14" weight="duotone" color="#16a34a" />
+              <button @click="handleRefresh"
+                class="w-7 h-7 rounded-xl flex items-center justify-center relative"
+                :style="progressStore.refreshesLeftToday > 0
+                  ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
+                  : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+                :disabled="progressStore.refreshesLeftToday <= 0">
+                <PhArrowsClockwise :size="14" weight="duotone"
+                  :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'" />
               </button>
+              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
             </div>
           </div>
           <div v-if="loadingTasks" class="flex items-center justify-center py-6 gap-2">
@@ -296,7 +305,7 @@
         </button>
         <button v-if="evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
-          @click="completeTask">
+          @click="handleCompleteTask">
           <PhCheckCircle :size="20" weight="duotone" color="white" />
           Awesome! Claim XP!
         </button>
@@ -313,11 +322,13 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
+import { useProgressStore, loadDailyTasks, saveDailyTasks, loadDailySeriesTasks, saveDailySeriesTasks } from '../stores/progress'
+import { trackEvent } from '../services/analytics'
 import {
   PhSun, PhCloud, PhCloudRain, PhPawPrint, PhCompass, PhLightning,
   PhTarget, PhCheckCircle, PhXCircle, PhNavigationArrow,
@@ -329,8 +340,9 @@ const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsi
 
 const authStore = useAuthStore()
 const weather = useWeatherStore()
+const progressStore = useProgressStore()
 const router = useRouter()
-const userName = authStore.user?.displayName?.split(' ')[0] || 'Explorer'
+const userName = authStore.user?.nickname || 'Explorer'
 
 const mode = ref('random')
 const showSeriesDropdown = ref(false)
@@ -387,16 +399,33 @@ const currentSeries = computed(() =>
   seriesList.find(s => s.id === selectedSeriesId.value)
 )
 
+// ─── Daily task persistence ─────────────────────────────────
+
 async function fetchRandomTasks() {
   loadingTasks.value = true
   try {
     const res = await axios.get(`${BASE_URL}/api/tasks/random`)
     randomTasks.value = res.data.map(t => ({ ...t, done: false }))
+    saveDailyTasks(randomTasks.value)
   } catch (e) {
     console.error('Failed to fetch tasks:', e)
   } finally {
     loadingTasks.value = false
   }
+}
+
+async function loadOrFetchRandomTasks() {
+  const cached = loadDailyTasks()
+  if (cached && cached.length > 0) {
+    randomTasks.value = cached
+  } else {
+    await fetchRandomTasks()
+  }
+}
+
+function handleRefresh() {
+  if (!progressStore.useRefresh()) return
+  fetchRandomTasks()
 }
 
 async function fetchSeriesTasks(seriesId) {
@@ -406,12 +435,24 @@ async function fetchSeriesTasks(seriesId) {
       params: { seriesId }
     })
     seriesTasks.value = res.data.map(t => ({ ...t, done: false }))
+    saveDailySeriesTasks(seriesId, seriesTasks.value)
   } catch (e) {
     console.error('Failed to fetch series tasks:', e)
   } finally {
     loadingSeriesTasks.value = false
   }
 }
+
+async function loadOrFetchSeriesTasks(seriesId) {
+  const cached = loadDailySeriesTasks(seriesId)
+  if (cached && cached.length > 0) {
+    seriesTasks.value = cached
+  } else {
+    await fetchSeriesTasks(seriesId)
+  }
+}
+
+// ─── Mode switching ─────────────────────────────────────────
 
 function switchMode(newMode) {
   if (newMode === 'series') {
@@ -432,7 +473,7 @@ function switchMode(newMode) {
 function selectSeries(id) {
   selectedSeriesId.value = id
   showSeriesDropdown.value = false
-  fetchSeriesTasks(id)
+  loadOrFetchSeriesTasks(id)
 }
 
 function clearSeries() {
@@ -440,12 +481,15 @@ function clearSeries() {
   seriesTasks.value = []
 }
 
+// ─── Task interaction ───────────────────────────────────────
+
 function openConfirm(task) {
   if (task.done) return
   selectedTask.value = task
   capturedPhoto.value = null
   evalResult.value = null
   showModal.value = true
+  trackEvent('task_start', { taskId: task.taskId, taskName: task.taskName })
 }
 
 function closeConfirm() {
@@ -467,6 +511,8 @@ async function handlePhotoCapture(event) {
   capturedPhoto.value = URL.createObjectURL(file)
   evaluating.value = true
   evalResult.value = null
+  progressStore.addPhoto()
+  trackEvent('photo_taken', { taskId: selectedTask.value?.taskId, taskName: selectedTask.value?.taskName })
   try {
     const formData = new FormData()
     formData.append('taskId', selectedTask.value.taskId)
@@ -483,10 +529,39 @@ async function handlePhotoCapture(event) {
   }
 }
 
-function completeTask() {
+function handleCompleteTask() {
   const task = randomTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
     || seriesTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
-  if (task) task.done = true
+  if (task) {
+    task.done = true
+
+    // Update progress store
+    progressStore.completeTask(task.rewardPoint || 10)
+
+    // Check sunny day badge
+    if (weather.desc === 'Clear sky') {
+      progressStore.completeSunnyTask()
+    }
+
+    // Check series completion
+    if (selectedSeriesId.value) {
+      const allDone = seriesTasks.value.every(t => t.done)
+      if (allDone) {
+        const seriesKey = selectedSeriesId.value === 1 ? 'nature'
+          : selectedSeriesId.value === 2 ? 'urban' : 'art'
+        progressStore.earnBadge(seriesKey)
+      }
+      saveDailySeriesTasks(selectedSeriesId.value, seriesTasks.value)
+    } else {
+      saveDailyTasks(randomTasks.value)
+    }
+
+    trackEvent('task_complete', {
+      taskId: task.taskId,
+      taskName: task.taskName,
+      xpEarned: task.rewardPoint || 10,
+    })
+  }
   closeConfirm()
 }
 
@@ -504,7 +579,8 @@ function goNavigate(task) {
 }
 
 onMounted(() => {
+  progressStore.init()
   if (!weather.temp) weather.fetchWeather()
-  fetchRandomTasks()
+  loadOrFetchRandomTasks()
 })
 </script>
