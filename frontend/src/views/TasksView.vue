@@ -281,8 +281,23 @@
           </p>
         </div>
 
+        <!-- Location status banner -->
+        <div v-if="selectedTask?.latitude != null" class="rounded-2xl p-3 flex items-center gap-2"
+          :style="locationStatus === 'in_range'
+            ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399'
+            : locationStatus === 'checking'
+              ? 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'
+              : 'background: #fff7ed; border: 2px solid #fed7aa; border-bottom: 3px solid #fdba74'">
+          <PhSpinner v-if="locationStatus === 'checking'" :size="16" weight="duotone" color="#94a3b8" class="animate-spin" />
+          <PhMapPin v-else-if="locationStatus === 'in_range'" :size="16" weight="duotone" color="#16a34a" />
+          <PhWarning v-else :size="16" weight="duotone" color="#f59e0b" />
+          <p class="text-xs font-bold" :style="locationStatus === 'in_range' ? 'color: #16a34a' : locationStatus === 'checking' ? 'color: #94a3b8' : 'color: #ea580c'">
+            {{ locationMessage }}
+          </p>
+        </div>
+
         <!-- Navigate to task location -->
-        <button v-if="selectedTask?.latitude != null && !evalResult?.matched"
+        <button v-if="selectedTask?.latitude != null && !evalResult?.matched && locationStatus !== 'in_range'"
           class="flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
           style="background: #eff6ff; color: #2563eb; border: 2px solid #bfdbfe; border-bottom: 4px solid #93c5fd"
           @click="goNavigate(selectedTask)">
@@ -290,8 +305,11 @@
           Navigate to Location
         </button>
 
+        <!-- Camera button: disabled if task has location and user not in range -->
         <button v-if="!evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
+          :style="canTakePhoto ? '' : 'opacity: 0.4; pointer-events: none'"
+          :disabled="!canTakePhoto"
           @click="triggerCamera">
           <PhCamera :size="20" weight="duotone" color="white" />
           {{ capturedPhoto ? 'Retake Photo' : 'Take a Photo!' }}
@@ -299,7 +317,7 @@
 
         <button v-if="evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
-          @click="completeTask">
+          @click="handleCompleteTask">
           <PhCheckCircle :size="20" weight="duotone" color="white" />
           Awesome! Claim XP!
         </button>
@@ -314,17 +332,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { useProgressStore } from '../stores/progress'
+import { useWeatherStore } from '../stores/weather'
+import { trackEvent } from '../services/analytics'
 import {
   PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
   PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush,
-  PhMapPin, PhCaretRight, PhNavigationArrow
+  PhMapPin, PhCaretRight, PhNavigationArrow, PhWarning
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
+const SERIES_TASKS_KEY = 'snaphunter_series_all_tasks'
+const PROXIMITY_RADIUS = 200 // meters
+
 const router = useRouter()
+const progressStore = useProgressStore()
+const weather = useWeatherStore()
 
 const allTasks = ref([])
 const loadingTasks = ref(false)
@@ -337,6 +363,18 @@ const fileInput = ref(null)
 const capturedPhoto = ref(null)
 const evaluating = ref(false)
 const evalResult = ref(null)
+
+// Location verification state
+const locationStatus = ref('checking') // 'checking' | 'in_range' | 'out_of_range' | 'error'
+const locationMessage = ref('Checking your location...')
+const userLat = ref(null)
+const userLng = ref(null)
+
+const canTakePhoto = computed(() => {
+  // If task has no location requirement, always allow
+  if (selectedTask.value?.latitude == null) return true
+  return locationStatus.value === 'in_range'
+})
 
 const seriesList = [
   {
@@ -371,6 +409,31 @@ const seriesList = [
   },
 ]
 
+// ─── Persistence helpers ────────────────────────────────────
+
+function getTodayKey() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function loadCachedSeriesTasks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SERIES_TASKS_KEY) || 'null')
+    if (saved && saved.date === getTodayKey()) {
+      return saved.tasks
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+function saveCachedSeriesTasks(tasks) {
+  localStorage.setItem(SERIES_TASKS_KEY, JSON.stringify({
+    date: getTodayKey(),
+    tasks,
+  }))
+}
+
+// ─── Fetch tasks ────────────────────────────────────────────
+
 async function fetchAllTasks() {
   loadingTasks.value = true
   try {
@@ -382,6 +445,7 @@ async function fetchAllTasks() {
       )
     )
     allTasks.value = results.flat().map(t => ({ ...t, done: false }))
+    saveCachedSeriesTasks(allTasks.value)
   } catch (e) {
     console.error('Failed to fetch tasks:', e)
   } finally {
@@ -389,22 +453,27 @@ async function fetchAllTasks() {
   }
 }
 
+async function loadOrFetchAllTasks() {
+  const cached = loadCachedSeriesTasks()
+  if (cached && cached.length > 0) {
+    allTasks.value = cached
+  } else {
+    await fetchAllTasks()
+  }
+}
+
+// ─── Task grouping helpers ──────────────────────────────────
+
 function getSeriesTasks(seriesId) {
   return allTasks.value.filter(t => t.seriesId === seriesId)
 }
 
-/**
- * Group tasks by taskName within a series.
- * Each group = { key, taskName, tasks[], totalReward, doneCount, allDone, someDone }
- */
 function getGroupedTasks(seriesId) {
   const tasks = getSeriesTasks(seriesId)
   const map = new Map()
   for (const task of tasks) {
     const key = task.taskName
-    if (!map.has(key)) {
-      map.set(key, [])
-    }
+    if (!map.has(key)) map.set(key, [])
     map.get(key).push(task)
   }
   const groups = []
@@ -438,11 +507,68 @@ function seriesCompleted(seriesId) {
   return tasks.length > 0 && tasks.every(t => t.done)
 }
 
+// ─── Location verification ─────────────────────────────────
+
 /**
- * Clicking a card:
- * - If group has 1 task -> open confirm modal directly
- * - If group has multiple tasks -> open location picker first
+ * Calculate distance between two GPS coordinates in meters (Haversine formula)
  */
+function getDistanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000 // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+    * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function checkProximity() {
+  if (selectedTask.value?.latitude == null) {
+    locationStatus.value = 'in_range'
+    locationMessage.value = 'No location required'
+    return
+  }
+
+  locationStatus.value = 'checking'
+  locationMessage.value = 'Checking your location...'
+
+  if (!navigator.geolocation) {
+    locationStatus.value = 'error'
+    locationMessage.value = 'GPS not available on this device'
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      userLat.value = pos.coords.latitude
+      userLng.value = pos.coords.longitude
+      const dist = getDistanceMeters(
+        pos.coords.latitude, pos.coords.longitude,
+        selectedTask.value.latitude, selectedTask.value.longitude
+      )
+      if (dist <= PROXIMITY_RADIUS) {
+        locationStatus.value = 'in_range'
+        locationMessage.value = `You're at the task location (${Math.round(dist)}m away)`
+      } else {
+        locationStatus.value = 'out_of_range'
+        const distKm = dist >= 1000 ? `${(dist / 1000).toFixed(1)}km` : `${Math.round(dist)}m`
+        locationMessage.value = `You're ${distKm} away. Please go to the task location first!`
+      }
+    },
+    (err) => {
+      locationStatus.value = 'error'
+      if (err.code === 1) {
+        locationMessage.value = 'Location access denied. Please enable GPS to take photos.'
+      } else {
+        locationMessage.value = 'Could not get your location. Please try again.'
+      }
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  )
+}
+
+// ─── Modal interaction ──────────────────────────────────────
+
 function handleCardClick(group, series) {
   if (group.allDone) return
   selectedSeries.value = series
@@ -473,7 +599,11 @@ function openConfirm(task, series) {
   selectedSeries.value = series
   capturedPhoto.value = null
   evalResult.value = null
+  locationStatus.value = 'checking'
   showModal.value = true
+  trackEvent('task_start', { taskId: task.taskId, taskName: task.taskName })
+  // Start location check
+  checkProximity()
 }
 
 function closeConfirm() {
@@ -481,22 +611,19 @@ function closeConfirm() {
   selectedTask.value = null
   capturedPhoto.value = null
   evalResult.value = null
-  // If we came from a location picker, reopen it with refreshed data
+  locationStatus.value = 'checking'
   if (selectedGroup.value) {
     refreshSelectedGroup()
     showLocationPicker.value = true
   }
 }
 
-/** Refresh the selectedGroup reactive data after a task completion */
 function refreshSelectedGroup() {
   if (!selectedGroup.value) return
   const seriesId = selectedSeries.value?.id
   const groups = getGroupedTasks(seriesId)
   const updated = groups.find(g => g.taskName === selectedGroup.value.taskName)
-  if (updated) {
-    selectedGroup.value = updated
-  }
+  if (updated) selectedGroup.value = updated
 }
 
 function triggerCamera() {
@@ -511,6 +638,8 @@ async function handlePhotoCapture(event) {
   capturedPhoto.value = URL.createObjectURL(file)
   evaluating.value = true
   evalResult.value = null
+  progressStore.addPhoto()
+  trackEvent('photo_taken', { taskId: selectedTask.value?.taskId, taskName: selectedTask.value?.taskName })
   try {
     const formData = new FormData()
     formData.append('taskId', selectedTask.value.taskId)
@@ -527,9 +656,37 @@ async function handlePhotoCapture(event) {
   }
 }
 
-function completeTask() {
+function handleCompleteTask() {
   const task = allTasks.value.find(t => t.taskId === selectedTask.value.taskId)
-  if (task) task.done = true
+  if (task) {
+    task.done = true
+
+    // Update progress
+    progressStore.completeTask(task.rewardPoint || 10)
+
+    // Check sunny day badge
+    if (weather.desc === 'Clear sky') {
+      progressStore.completeSunnyTask()
+    }
+
+    // Check series completion
+    const seriesId = task.seriesId
+    if (seriesId) {
+      const seriesKey = seriesId === 1 ? 'nature' : seriesId === 2 ? 'urban' : 'art'
+      if (seriesCompleted(seriesId)) {
+        progressStore.earnBadge(seriesKey)
+      }
+    }
+
+    // Persist to localStorage
+    saveCachedSeriesTasks(allTasks.value)
+
+    trackEvent('task_complete', {
+      taskId: task.taskId,
+      taskName: task.taskName,
+      xpEarned: task.rewardPoint || 10,
+    })
+  }
   closeConfirm()
 }
 
@@ -547,6 +704,7 @@ function goNavigate(task) {
 }
 
 onMounted(() => {
-  fetchAllTasks()
+  progressStore.init()
+  loadOrFetchAllTasks()
 })
 </script>
