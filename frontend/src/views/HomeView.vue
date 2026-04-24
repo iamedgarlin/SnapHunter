@@ -1,263 +1,285 @@
 <template>
   <div class="min-h-full pb-6" style="background: #f0fdf4; font-family: var(--font-game)">
 
-    <!-- Header -->
-    <div class="relative overflow-hidden px-4 pt-6 pb-5"
+    <!-- Top banner -->
+    <div class="relative overflow-hidden px-4 pt-6 pb-4"
       style="background: linear-gradient(160deg, #bbf7d0, #6ee7b7); border-radius: 0 0 32px 32px; border-bottom: 4px solid #34d399">
-      <h1 class="text-2xl font-black text-emerald-900">Series Gallery</h1>
-      <p class="text-xs font-bold text-emerald-700 mt-1">Complete a series to unlock a badge!</p>
-    </div>
-
-    <div class="px-4 flex flex-col gap-4 mt-4 pb-4">
-
-      <div v-if="loadingTasks" class="flex items-center justify-center py-12 gap-2">
-        <PhSpinner :size="24" weight="duotone" color="#10b981" class="animate-spin" />
-        <span class="text-sm font-bold text-gray-400">Loading series...</span>
-      </div>
-
-      <!-- Series cards (stamp style) -->
-      <div v-else v-for="series in seriesList" :key="series.id"
-        class="rounded-3xl overflow-hidden"
-        :style="`border: 2.5px solid ${series.borderColor}; border-bottom: 5px solid ${series.borderBottomColor}`">
-
-        <!-- Card header -->
-        <div class="px-4 pt-4 pb-3 flex items-center justify-between"
-          :style="`background: ${series.iconBg}`">
-          <div class="flex items-center gap-3">
-            <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
-              style="background: white; border-bottom: 3px solid"
-              :style="`border-color: ${series.borderColor}; border-bottom-color: ${series.borderBottomColor}`">
-              <component :is="series.icon" :size="26" weight="duotone" :color="series.color" />
-            </div>
-            <div>
-              <div class="flex items-center gap-1.5">
-                <p class="text-base font-black" :style="`color: ${series.color}`">{{ series.name }}</p>
-                <PhSeal v-if="seriesCompleted(series.id)" :size="16" weight="duotone" color="#f59e0b" />
-              </div>
-              <p class="text-xs font-semibold text-gray-500">{{ series.description }}</p>
-            </div>
-          </div>
-          <div class="flex flex-col items-end gap-0.5">
-            <span class="text-sm font-black" :style="`color: ${series.color}`">
-              {{ seriesCompletedCount(series.id) }}/{{ getSeriesTasks(series.id).length }}
+      <div class="flex items-end justify-between">
+        <div>
+          <p class="text-xs font-black text-emerald-700 uppercase tracking-widest">Hey {{ userName }}!</p>
+          <h1 class="text-3xl font-black text-emerald-900 leading-tight mt-1">
+            Ready for<br>today's hunt?
+          </h1>
+          <div class="mt-3 inline-flex items-center gap-1 bg-white/60 rounded-full px-3 py-1">
+            <PhSun v-if="weather.desc === 'Clear sky'" :size="16" weight="duotone" color="#f59e0b" />
+            <PhCloud v-else-if="weather.desc === 'Cloudy' || weather.desc === 'Partly cloudy'" :size="16" weight="duotone" color="#94a3b8" />
+            <PhCloudRain v-else-if="weather.desc === 'Rainy'" :size="16" weight="duotone" color="#60a5fa" />
+            <PhSun v-else :size="16" weight="duotone" color="#f59e0b" />
+            <span class="text-xs font-black text-emerald-800">
+              <template v-if="weather.loading">Loading weather...</template>
+              <template v-else>{{ weather.temp }}°C · {{ weather.desc }} · {{ weather.suburb }}</template>
             </span>
           </div>
         </div>
-
-        <!-- Progress bar -->
-        <div class="px-4 py-2" :style="`background: ${series.iconBg}`">
-          <div class="h-2.5 rounded-full overflow-hidden"
-            style="background: rgba(255,255,255,0.6)">
-            <div class="h-full rounded-full transition-all duration-500"
-              :style="`width: ${seriesProgress(series.id)}%; background: ${series.color}`">
-            </div>
-          </div>
+        <div class="w-24 h-24 flex-shrink-0 rounded-3xl flex items-center justify-center"
+          style="background: white; border: 3px solid #34d399; border-bottom: 5px solid #16a34a">
+          <PhPawPrint :size="52" weight="duotone" color="#16a34a" />
         </div>
-
-        <!-- Dashed separator (stamp perforation effect) -->
-        <div class="flex items-center px-2" :style="`background: ${series.iconBg}`">
-          <div class="flex-1 border-t-2 border-dashed" :style="`border-color: ${series.borderColor}`"></div>
-          <div class="mx-2">
-            <PhMedal :size="18" weight="duotone"
-              :color="seriesCompleted(series.id) ? '#f59e0b' : series.borderColor" />
-          </div>
-          <div class="flex-1 border-t-2 border-dashed" :style="`border-color: ${series.borderColor}`"></div>
-        </div>
-
-        <!-- Task cards horizontal scroll -->
-        <div class="bg-white px-4 pt-3 pb-4">
-          <div v-if="!getGroupedTasks(series.id).length"
-            class="flex items-center justify-center py-6 text-xs font-semibold text-gray-400">
-            No tasks loaded yet
-          </div>
-          <div v-else class="flex gap-3 overflow-x-auto pb-1"
-            style="scrollbar-width: none; -ms-overflow-style: none;">
-
-            <div v-for="group in getGroupedTasks(series.id)" :key="group.key"
-              class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden relative"
-              style="width: 140px; height: 160px;"
-              :style="group.allDone
-                ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`
-                : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
-              @click="handleCardClick(group, series)">
-
-              <!-- Multi-location badge -->
-              <div v-if="group.tasks.length > 1"
-                class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
-                :style="group.allDone
-                  ? `background: ${series.color}; color: white`
-                  : 'background: #e2e8f0; color: #64748b'">
-                <PhMapPin :size="10" weight="duotone" :color="group.allDone ? 'white' : '#64748b'" />
-                <span class="text-xs font-black" style="font-size: 10px; line-height: 1">{{ group.doneCount }}/{{ group.tasks.length }}</span>
-              </div>
-
-              <!-- Icon area -->
-              <div class="flex items-center justify-center pt-3 pb-2">
-                <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  :style="group.allDone
-                    ? `background: white; border: 2px solid ${series.borderColor}`
-                    : 'background: white; border: 2px solid #e2e8f0'">
-                  <PhCamera :size="20" weight="duotone"
-                    :color="group.allDone ? series.color : '#94a3b8'" />
-                </div>
-              </div>
-
-              <!-- Task name -->
-              <div class="px-3 flex-1 flex flex-col justify-between pb-3">
-                <div>
-                  <p class="text-xs font-black leading-tight overflow-hidden"
-                    style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-                    :style="group.allDone ? `color: ${series.color}` : 'color: #1f2937'">
-                    {{ group.taskName }}
-                  </p>
-                  <p v-if="group.tasks.length === 1" class="text-xs font-semibold text-gray-400 mt-1 overflow-hidden"
-                    style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
-                    {{ group.tasks[0].taskDescription }}
-                  </p>
-                  <p v-else class="text-xs font-semibold mt-1"
-                    :style="group.someDone ? `color: ${series.color}` : 'color: #94a3b8'">
-                    {{ group.tasks.length }} locations
-                  </p>
-                </div>
-                <div class="flex items-center justify-between mt-2">
-                  <div class="flex items-center gap-0.5">
-                    <PhLightning :size="11" weight="duotone" color="#f59e0b" />
-                    <span class="text-xs font-black text-amber-500">+{{ group.totalReward }}</span>
-                  </div>
-                  <PhCheckCircle v-if="group.allDone" :size="16" weight="duotone" :color="series.color" />
-                  <PhCamera v-else :size="14" weight="duotone" color="#cbd5e1" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Badge unlock card -->
-            <div class="flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl"
-              style="width: 100px; height: 160px; border: 2px dashed #e2e8f0; background: #f8fafc">
-              <PhMedal :size="28" weight="duotone"
-                :color="seriesCompleted(series.id) ? '#f59e0b' : '#cbd5e1'" />
-              <p class="text-xs font-black text-center px-2 leading-tight"
-                :style="seriesCompleted(series.id) ? 'color: #f59e0b' : 'color: #94a3b8'">
-                {{ seriesCompleted(series.id) ? 'Badge unlocked!' : 'Complete all!' }}
-              </p>
-            </div>
-          </div>
-        </div>
-
       </div>
+      <div class="absolute top-3 right-32 w-3 h-3 rounded-full bg-white opacity-40"></div>
+      <div class="absolute top-8 right-24 w-2 h-2 rounded-full bg-white opacity-30"></div>
+      <div class="absolute bottom-6 left-8 w-2 h-2 rounded-full bg-white opacity-30"></div>
+    </div>
+
+    <div class="px-4 flex flex-col gap-4 mt-4">
+
+      <!-- XP / Level bar -->
+      <div class="card-game">
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-base"
+              style="background: linear-gradient(135deg, #f59e0b, #ef4444); border-bottom: 3px solid #b45309">
+              {{ progressStore.level }}
+            </div>
+            <div>
+              <p class="text-xs font-black text-gray-500 uppercase tracking-wide">Level</p>
+              <div class="flex items-center gap-1">
+                <PhCompass :size="14" weight="duotone" color="#10b981" />
+                <p class="text-sm font-black text-gray-800">{{ progressStore.levelTitle }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="flex items-center gap-1">
+            <PhLightning :size="14" weight="duotone" color="#f59e0b" />
+            <p class="text-xs font-black text-amber-500">
+              {{ progressStore.xpInCurrentLevel }} / {{ progressStore.xpNeededForLevel }} XP
+            </p>
+          </div>
+        </div>
+        <div class="h-4 rounded-full overflow-hidden border-2 border-gray-200" style="background: #f1f5f9">
+          <div class="h-full rounded-full relative transition-all duration-500"
+            :style="`width: ${progressStore.xpPercent}%; background: linear-gradient(to right, #fbbf24, #f59e0b)`">
+            <div v-if="progressStore.xpPercent >= 15" class="absolute right-2 top-0 h-full flex items-center">
+              <span class="text-white text-xs font-black">{{ progressStore.xpPercent }}%</span>
+            </div>
+          </div>
+        </div>
+        <p class="text-xs font-semibold text-gray-400 mt-1.5">
+          {{ progressStore.xpNeededForLevel - progressStore.xpInCurrentLevel }} XP to next level
+        </p>
+      </div>
+
+      <!-- Mode toggle + series dropdown -->
+      <div class="relative">
+        <div class="flex gap-2">
+          <button
+            class="flex-1 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all"
+            :style="mode === 'random'
+              ? 'background: #10b981; color: white; border: 2px solid #059669; border-bottom: 4px solid #047857'
+              : 'background: white; color: #94a3b8; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1'"
+            @click="switchMode('random')">
+            <PhShuffle :size="16" weight="duotone" :color="mode === 'random' ? 'white' : '#94a3b8'" />
+            Random
+          </button>
+          <button
+            class="flex-1 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all"
+            :style="mode === 'series'
+              ? 'background: #10b981; color: white; border: 2px solid #059669; border-bottom: 4px solid #047857'
+              : 'background: white; color: #94a3b8; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1'"
+            @click="switchMode('series')">
+            <PhStarFour :size="16" weight="duotone" :color="mode === 'series' ? 'white' : '#94a3b8'" />
+            Series
+            <PhCaretDown :size="14" weight="bold" :color="mode === 'series' ? 'white' : '#94a3b8'" />
+          </button>
+        </div>
+
+        <!-- Series dropdown -->
+        <div v-if="mode === 'series' && showSeriesDropdown"
+          class="absolute right-0 top-14 z-20 w-1/2 rounded-2xl overflow-hidden"
+          style="background: white; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1">
+          <div v-for="series in seriesList" :key="series.id"
+            class="flex items-center gap-3 px-3 py-3 cursor-pointer transition-all"
+            :style="selectedSeriesId === series.id ? `background: ${series.iconBg}` : 'background: white'"
+            @click="selectSeries(series.id)">
+            <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              :style="`background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 2px solid ${series.borderBottomColor}`">
+              <component :is="series.icon" :size="18" weight="duotone" :color="series.color" />
+            </div>
+            <p class="text-sm font-black flex-1"
+              :style="`color: ${selectedSeriesId === series.id ? series.color : '#374151'}`">
+              {{ series.name }}
+            </p>
+            <PhCheck v-if="selectedSeriesId === series.id" :size="14" weight="bold" :color="series.color" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Random task card -->
+      <template v-if="!selectedSeriesId">
+        <div class="card-game" style="border-color: #bbf7d0; border-bottom-color: #34d399">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-1.5">
+              <PhTarget :size="18" weight="duotone" color="#10b981" />
+              <p class="text-base font-black text-gray-800">Today's Mission</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-black text-emerald-700 bg-emerald-100 rounded-xl px-2 py-1">
+                {{ completedRandomCount }} / {{ randomTasks.length }}
+              </span>
+              <button @click="handleRefresh"
+                class="w-7 h-7 rounded-xl flex items-center justify-center relative"
+                :style="progressStore.refreshesLeftToday > 0
+                  ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
+                  : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+                :disabled="progressStore.refreshesLeftToday <= 0">
+                <PhArrowsClockwise :size="14" weight="duotone"
+                  :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'" />
+              </button>
+              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
+            </div>
+          </div>
+          <div v-if="loadingTasks" class="flex items-center justify-center py-6 gap-2">
+            <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
+            <span class="text-sm font-bold text-gray-400">Loading tasks...</span>
+          </div>
+          <div v-else class="flex flex-col gap-2">
+            <div v-for="task in randomTasks" :key="task.taskId"
+              class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
+              :style="task.done
+                ? 'background: #f0fdf4; border: 2px solid #bbf7d0'
+                : 'background: #f8fafc; border: 2px solid #e2e8f0'"
+              @click="openConfirm(task)">
+              <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                :style="task.done ? 'background: #dcfce7' : 'background: #f1f5f9'">
+                <PhCamera :size="18" weight="duotone" :color="task.done ? '#16a34a' : '#94a3b8'" />
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-bold"
+                  :style="task.done ? 'color: #16a34a; text-decoration: line-through' : 'color: #374151'">
+                  {{ task.taskName }}
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ task.taskDescription }}</p>
+              </div>
+              <div v-if="!task.done" class="flex items-center gap-1.5 flex-shrink-0">
+                <div class="flex items-center gap-0.5">
+                  <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+                  <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+                </div>
+                <button v-if="task.latitude != null"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
+                  @click.stop="goNavigate(task)">
+                  <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
+                </button>
+              </div>
+              <PhCheckCircle v-else :size="18" weight="duotone" color="#16a34a" />
+            </div>
+          </div>
+        </div>
+    </template>
+
+      <!-- Series task card -->
+      <template v-else>
+        <div class="card-game"
+          :style="`border-color: ${currentSeries?.borderColor}; border-bottom-color: ${currentSeries?.borderBottomColor}`">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <component :is="currentSeries?.icon" :size="18" weight="duotone" :color="currentSeries?.color" />
+              <p class="text-base font-black text-gray-800">{{ currentSeries?.name }} Tasks</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button @click="handleSeriesRefresh"
+                class="w-7 h-7 rounded-xl flex items-center justify-center"
+                :style="progressStore.refreshesLeftToday > 0
+                  ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}; border-bottom: 3px solid ${currentSeries?.borderBottomColor}`
+                  : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+                :disabled="progressStore.refreshesLeftToday <= 0">
+                <PhArrowsClockwise :size="14" weight="duotone"
+                  :color="progressStore.refreshesLeftToday > 0 ? currentSeries?.color : '#94a3b8'" />
+              </button>
+              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
+              <button @click="clearSeries"
+                class="w-7 h-7 rounded-xl flex items-center justify-center"
+                style="background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 2px solid #cbd5e1">
+                <PhX :size="14" weight="bold" color="#94a3b8" />
+              </button>
+            </div>
+          </div>
+          <div v-if="loadingSeriesTasks" class="flex items-center justify-center py-6 gap-2">
+            <PhSpinner :size="20" weight="duotone" :color="currentSeries?.color" class="animate-spin" />
+            <span class="text-sm font-bold text-gray-400">Loading tasks...</span>
+          </div>
+          <div v-else class="flex flex-col gap-2">
+            <div v-for="task in seriesTasks" :key="task.taskId"
+              class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
+              :style="task.done
+                ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}`
+                : 'background: #f8fafc; border: 2px solid #e2e8f0'"
+              @click="openConfirm(task)">
+              <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                :style="task.done ? `background: ${currentSeries?.iconBg}` : 'background: #f1f5f9'">
+                <PhCamera :size="18" weight="duotone"
+                  :color="task.done ? currentSeries?.color : '#94a3b8'" />
+              </div>
+              <div class="flex-1">
+                <p class="text-sm font-bold"
+                  :style="task.done
+                    ? `color: ${currentSeries?.color}; text-decoration: line-through`
+                    : 'color: #374151'">
+                  {{ task.taskName }}
+                </p>
+                <p class="text-xs text-gray-400 mt-0.5">{{ task.taskDescription }}</p>
+              </div>
+              <div v-if="!task.done" class="flex items-center gap-1.5 flex-shrink-0">
+                <div class="flex items-center gap-0.5">
+                  <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+                  <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
+                </div>
+                <button v-if="task.latitude != null"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
+                  @click.stop="goNavigate(task)">
+                  <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
+                </button>
+              </div>
+              <PhCheckCircle v-else :size="18" weight="duotone" :color="currentSeries?.color" />
+            </div>
+          </div>
+        </div>
+      </template>
+
     </div>
 
     <!-- Hidden file input -->
     <input ref="fileInput" type="file" accept="image/*" capture="environment"
       class="hidden" @change="handlePhotoCapture" />
 
-    <!-- Location picker modal (for grouped tasks with multiple locations) -->
-    <div v-if="showLocationPicker"
-      class="fixed inset-0 flex items-end justify-center z-50"
-      style="background: rgba(0,0,0,0.4)"
-      @click.self="closeLocationPicker">
-      <div class="w-full max-w-md bg-white rounded-t-3xl p-6 flex flex-col gap-3"
-        :style="`border-top: 4px solid ${selectedSeries?.borderBottomColor || '#34d399'}`">
-
-        <!-- Header -->
-        <div class="flex items-center gap-3 mb-1">
-          <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-            :style="`background: ${selectedSeries?.iconBg}; border: 2px solid ${selectedSeries?.borderColor}; border-bottom: 3px solid ${selectedSeries?.borderBottomColor}`">
-            <component :is="selectedSeries?.icon" :size="24" weight="duotone" :color="selectedSeries?.color || '#16a34a'" />
-          </div>
-          <div>
-            <p class="text-lg font-black text-gray-800">{{ selectedGroup?.taskName }}</p>
-            <p class="text-xs font-semibold text-gray-400">
-              {{ selectedGroup?.doneCount }}/{{ selectedGroup?.tasks.length }} locations completed
-            </p>
-          </div>
-        </div>
-
-        <!-- Location progress bar -->
-        <div class="h-2 rounded-full overflow-hidden" style="background: #f1f5f9">
-          <div class="h-full rounded-full transition-all duration-500"
-            :style="`width: ${selectedGroup ? Math.round((selectedGroup.doneCount / selectedGroup.tasks.length) * 100) : 0}%; background: ${selectedSeries?.color}`">
-          </div>
-        </div>
-
-        <!-- Task list -->
-        <div class="flex flex-col gap-2 max-h-64 overflow-y-auto" style="scrollbar-width: thin">
-          <div v-for="task in selectedGroup?.tasks" :key="task.taskId"
-            class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-98 transition-all"
-            :style="task.done
-              ? `background: ${selectedSeries?.iconBg}; border: 2px solid ${selectedSeries?.borderColor}`
-              : 'background: #f8fafc; border: 2px solid #e2e8f0'"
-            @click="openConfirmFromLocation(task)">
-
-            <!-- Status icon -->
-            <div class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-              :style="task.done
-                ? `background: ${selectedSeries?.color}`
-                : 'background: white; border: 2px solid #e2e8f0'">
-              <PhCheckCircle v-if="task.done" :size="18" weight="duotone" color="white" />
-              <PhMapPin v-else :size="18" weight="duotone" color="#94a3b8" />
-            </div>
-
-            <!-- Task info -->
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-black leading-tight"
-                :style="task.done ? `color: ${selectedSeries?.color}` : 'color: #1f2937'">
-                {{ task.taskDescription }}
-              </p>
-            </div>
-
-            <!-- Reward + Navigate -->
-            <div class="flex items-center gap-1.5 flex-shrink-0">
-              <div class="flex items-center gap-0.5">
-                <PhLightning :size="12" weight="duotone" color="#f59e0b" />
-                <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
-              </div>
-              <button v-if="!task.done && task.latitude != null"
-                class="w-7 h-7 rounded-lg flex items-center justify-center"
-                style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
-                @click.stop="goNavigate(task)">
-                <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
-              </button>
-              <PhCaretRight v-if="!task.done" :size="14" weight="bold" color="#cbd5e1" />
-            </div>
-          </div>
-        </div>
-
-        <button class="text-sm font-bold text-gray-400 py-2" @click="closeLocationPicker">
-          Close
-        </button>
-      </div>
-    </div>
-
-    <!-- Task detail + confirm modal -->
+    <!-- Confirm modal -->
     <div v-if="showModal"
       class="fixed inset-0 flex items-end justify-center z-50"
       style="background: rgba(0,0,0,0.4)"
       @click.self="closeConfirm">
       <div class="w-full max-w-md bg-white rounded-t-3xl p-6 flex flex-col gap-4"
-        :style="`border-top: 4px solid ${selectedSeries?.borderBottomColor || '#34d399'}`">
-
-        <div class="flex items-start gap-3">
-          <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-            :style="`background: ${selectedSeries?.iconBg}; border: 2px solid ${selectedSeries?.borderColor}; border-bottom: 3px solid ${selectedSeries?.borderBottomColor}`">
-            <PhCamera :size="28" weight="duotone" :color="selectedSeries?.color || '#16a34a'" />
+        style="border-top: 4px solid #34d399">
+        <div class="flex items-center gap-3">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style="background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac">
+            <PhCamera :size="28" weight="duotone" color="#16a34a" />
           </div>
-          <div class="flex-1">
+          <div>
             <p class="text-lg font-black text-gray-800">{{ selectedTask?.taskName }}</p>
-            <p class="text-xs font-semibold text-gray-400 mt-0.5 leading-relaxed">{{ selectedTask?.taskDescription }}</p>
+            <p class="text-xs font-semibold text-gray-400">{{ selectedTask?.taskDescription }}</p>
           </div>
         </div>
-
         <div v-if="capturedPhoto"
           class="w-full rounded-2xl overflow-hidden"
           style="border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399">
           <img :src="capturedPhoto" class="w-full object-cover" style="max-height: 200px" />
         </div>
-
         <div v-if="evaluating" class="flex items-center justify-center gap-2 py-2">
           <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
           <span class="text-sm font-bold text-gray-400">Checking your photo...</span>
         </div>
-
         <div v-if="evalResult" class="rounded-2xl p-3"
           :style="evalResult.matched
             ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399'
@@ -272,7 +294,6 @@
           </div>
           <p class="text-xs font-semibold text-gray-500">{{ evalResult.reason }}</p>
         </div>
-
         <div class="bg-amber-50 rounded-2xl p-3 flex items-center gap-2"
           style="border: 2px solid #fde68a; border-bottom: 3px solid #fbbf24">
           <PhLightning :size="20" weight="duotone" color="#f59e0b" />
@@ -280,7 +301,6 @@
             Complete this task to earn +{{ selectedTask?.rewardPoint }} XP!
           </p>
         </div>
-
         <!-- Location status banner -->
         <div v-if="selectedTask?.latitude != null" class="rounded-2xl p-3 flex items-center gap-2"
           :style="locationStatus === 'in_range'
@@ -295,7 +315,6 @@
             {{ locationMessage }}
           </p>
         </div>
-
         <!-- Navigate to task location -->
         <button v-if="selectedTask?.latitude != null && !evalResult?.matched && locationStatus !== 'in_range'"
           class="flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-sm transition-all"
@@ -304,8 +323,6 @@
           <PhNavigationArrow :size="18" weight="duotone" color="#3b82f6" />
           Navigate to Location
         </button>
-
-        <!-- Camera button: disabled if task has location and user not in range -->
         <button v-if="!evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
           :style="canTakePhoto ? '' : 'opacity: 0.4; pointer-events: none'"
@@ -314,67 +331,75 @@
           <PhCamera :size="20" weight="duotone" color="white" />
           {{ capturedPhoto ? 'Retake Photo' : 'Take a Photo!' }}
         </button>
-
         <button v-if="evalResult?.matched"
           class="btn-game text-base font-black flex items-center justify-center gap-2"
           @click="handleCompleteTask">
           <PhCheckCircle :size="20" weight="duotone" color="white" />
           Awesome! Claim XP!
         </button>
-
         <button class="text-sm font-bold text-gray-400 py-2" @click="closeConfirm">
           Not yet
         </button>
       </div>
     </div>
 
+    <!-- Backdrop -->
+    <div v-if="showSeriesDropdown" class="fixed inset-0 z-10" @click="showSeriesDropdown = false" />
+
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
-import { useProgressStore } from '../stores/progress'
+import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
+import { useProgressStore, loadDailyTasks, saveDailyTasks, loadDailySeriesTasks, saveDailySeriesTasks } from '../stores/progress'
 import { trackEvent } from '../services/analytics'
 import {
-  PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
-  PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush,
-  PhMapPin, PhCaretRight, PhNavigationArrow, PhWarning
+  PhSun, PhCloud, PhCloudRain, PhPawPrint, PhCompass, PhLightning,
+  PhTarget, PhCheckCircle, PhXCircle, PhNavigationArrow,
+  PhCamera, PhShuffle, PhStarFour, PhArrowsClockwise, PhSpinner,
+  PhTree, PhBuildings, PhPaintBrush, PhCheck, PhCaretDown, PhX,
+  PhMapPin, PhWarning
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
-const SERIES_TASKS_KEY = 'snaphunter_series_all_tasks'
-const PROXIMITY_RADIUS = 200 // meters
 
-const router = useRouter()
-const progressStore = useProgressStore()
+const authStore = useAuthStore()
 const weather = useWeatherStore()
+const progressStore = useProgressStore()
+const router = useRouter()
+const userName = authStore.user?.nickname || 'Explorer'
 
-const allTasks = ref([])
+const mode = ref('random')
+const showSeriesDropdown = ref(false)
+const selectedSeriesId = ref(null)
+const randomTasks = ref([])
+const seriesTasks = ref([])
 const loadingTasks = ref(false)
+const loadingSeriesTasks = ref(false)
 const showModal = ref(false)
-const showLocationPicker = ref(false)
 const selectedTask = ref(null)
-const selectedSeries = ref(null)
-const selectedGroup = ref(null)
 const fileInput = ref(null)
 const capturedPhoto = ref(null)
 const evaluating = ref(false)
 const evalResult = ref(null)
 
 // Location verification state
+const PROXIMITY_RADIUS = 200 // meters
 const locationStatus = ref('checking') // 'checking' | 'in_range' | 'out_of_range' | 'error'
 const locationMessage = ref('Checking your location...')
-const userLat = ref(null)
-const userLng = ref(null)
 
 const canTakePhoto = computed(() => {
-  // If task has no location requirement, always allow
   if (selectedTask.value?.latitude == null) return true
   return locationStatus.value === 'in_range'
 })
+
+const completedRandomCount = computed(() =>
+  randomTasks.value.filter(t => t.done).length
+)
 
 const seriesList = [
   {
@@ -409,43 +434,18 @@ const seriesList = [
   },
 ]
 
-// ─── Persistence helpers ────────────────────────────────────
+const currentSeries = computed(() =>
+  seriesList.find(s => s.id === selectedSeriesId.value)
+)
 
-function getTodayKey() {
-  return new Date().toISOString().slice(0, 10)
-}
+// ─── Daily task persistence ─────────────────────────────────
 
-function loadCachedSeriesTasks() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(SERIES_TASKS_KEY) || 'null')
-    if (saved && saved.date === getTodayKey()) {
-      return saved.tasks
-    }
-  } catch { /* ignore */ }
-  return null
-}
-
-function saveCachedSeriesTasks(tasks) {
-  localStorage.setItem(SERIES_TASKS_KEY, JSON.stringify({
-    date: getTodayKey(),
-    tasks,
-  }))
-}
-
-// ─── Fetch tasks ────────────────────────────────────────────
-
-async function fetchAllTasks() {
+async function fetchRandomTasks() {
   loadingTasks.value = true
   try {
-    const results = await Promise.all(
-      seriesList.map(s =>
-        axios.get(`${BASE_URL}/api/tasks/series/all`, { params: { seriesId: s.id } })
-          .then(res => res.data)
-          .catch(() => [])
-      )
-    )
-    allTasks.value = results.flat().map(t => ({ ...t, done: false }))
-    saveCachedSeriesTasks(allTasks.value)
+    const res = await axios.get(`${BASE_URL}/api/tasks/random`)
+    randomTasks.value = res.data.map(t => ({ ...t, done: false }))
+    saveDailyTasks(randomTasks.value)
   } catch (e) {
     console.error('Failed to fetch tasks:', e)
   } finally {
@@ -453,67 +453,83 @@ async function fetchAllTasks() {
   }
 }
 
-async function loadOrFetchAllTasks() {
-  const cached = loadCachedSeriesTasks()
+async function loadOrFetchRandomTasks() {
+  const cached = loadDailyTasks()
   if (cached && cached.length > 0) {
-    allTasks.value = cached
+    randomTasks.value = cached
   } else {
-    await fetchAllTasks()
+    await fetchRandomTasks()
   }
 }
 
-// ─── Task grouping helpers ──────────────────────────────────
-
-function getSeriesTasks(seriesId) {
-  return allTasks.value.filter(t => t.seriesId === seriesId)
+function handleRefresh() {
+  if (!progressStore.useRefresh()) return
+  fetchRandomTasks()
 }
 
-function getGroupedTasks(seriesId) {
-  const tasks = getSeriesTasks(seriesId)
-  const map = new Map()
-  for (const task of tasks) {
-    const key = task.taskName
-    if (!map.has(key)) map.set(key, [])
-    map.get(key).push(task)
-  }
-  const groups = []
-  for (const [taskName, groupTasks] of map) {
-    const doneCount = groupTasks.filter(t => t.done).length
-    groups.push({
-      key: `${seriesId}-${taskName}`,
-      taskName,
-      tasks: groupTasks,
-      totalReward: groupTasks.reduce((sum, t) => sum + t.rewardPoint, 0),
-      doneCount,
-      allDone: doneCount === groupTasks.length,
-      someDone: doneCount > 0 && doneCount < groupTasks.length,
+function handleSeriesRefresh() {
+  if (!selectedSeriesId.value) return
+  if (!progressStore.useRefresh()) return
+  fetchSeriesTasks(selectedSeriesId.value)
+}
+
+async function fetchSeriesTasks(seriesId) {
+  loadingSeriesTasks.value = true
+  try {
+    const res = await axios.get(`${BASE_URL}/api/tasks/series/random`, {
+      params: { seriesId }
     })
+    seriesTasks.value = res.data.map(t => ({ ...t, done: false }))
+    saveDailySeriesTasks(seriesId, seriesTasks.value)
+  } catch (e) {
+    console.error('Failed to fetch series tasks:', e)
+  } finally {
+    loadingSeriesTasks.value = false
   }
-  return groups
 }
 
-function seriesCompletedCount(seriesId) {
-  return getSeriesTasks(seriesId).filter(t => t.done).length
+async function loadOrFetchSeriesTasks(seriesId) {
+  const cached = loadDailySeriesTasks(seriesId)
+  if (cached && cached.length > 0) {
+    seriesTasks.value = cached
+  } else {
+    await fetchSeriesTasks(seriesId)
+  }
 }
 
-function seriesProgress(seriesId) {
-  const tasks = getSeriesTasks(seriesId)
-  if (!tasks.length) return 0
-  return Math.round((seriesCompletedCount(seriesId) / tasks.length) * 100)
+// ─── Mode switching ─────────────────────────────────────────
+
+function switchMode(newMode) {
+  if (newMode === 'series') {
+    if (mode.value === 'series') {
+      showSeriesDropdown.value = !showSeriesDropdown.value
+    } else {
+      mode.value = 'series'
+      showSeriesDropdown.value = true
+    }
+  } else {
+    mode.value = 'random'
+    showSeriesDropdown.value = false
+    selectedSeriesId.value = null
+    seriesTasks.value = []
+  }
 }
 
-function seriesCompleted(seriesId) {
-  const tasks = getSeriesTasks(seriesId)
-  return tasks.length > 0 && tasks.every(t => t.done)
+function selectSeries(id) {
+  selectedSeriesId.value = id
+  showSeriesDropdown.value = false
+  loadOrFetchSeriesTasks(id)
+}
+
+function clearSeries() {
+  selectedSeriesId.value = null
+  seriesTasks.value = []
 }
 
 // ─── Location verification ─────────────────────────────────
 
-/**
- * Calculate distance between two GPS coordinates in meters (Haversine formula)
- */
 function getDistanceMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000 // Earth radius in meters
+  const R = 6371000
   const dLat = (lat2 - lat1) * Math.PI / 180
   const dLng = (lng2 - lng1) * Math.PI / 180
   const a = Math.sin(dLat / 2) ** 2
@@ -528,20 +544,15 @@ function checkProximity() {
     locationMessage.value = 'No location required'
     return
   }
-
   locationStatus.value = 'checking'
   locationMessage.value = 'Checking your location...'
-
   if (!navigator.geolocation) {
     locationStatus.value = 'error'
     locationMessage.value = 'GPS not available on this device'
     return
   }
-
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      userLat.value = pos.coords.latitude
-      userLng.value = pos.coords.longitude
       const dist = getDistanceMeters(
         pos.coords.latitude, pos.coords.longitude,
         selectedTask.value.latitude, selectedTask.value.longitude
@@ -557,52 +568,24 @@ function checkProximity() {
     },
     (err) => {
       locationStatus.value = 'error'
-      if (err.code === 1) {
-        locationMessage.value = 'Location access denied. Please enable GPS to take photos.'
-      } else {
-        locationMessage.value = 'Could not get your location. Please try again.'
-      }
+      locationMessage.value = err.code === 1
+        ? 'Location access denied. Please enable GPS to take photos.'
+        : 'Could not get your location. Please try again.'
     },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
   )
 }
 
-// ─── Modal interaction ──────────────────────────────────────
+// ─── Task interaction ───────────────────────────────────────
 
-function handleCardClick(group, series) {
-  if (group.allDone) return
-  selectedSeries.value = series
-  if (group.tasks.length === 1) {
-    const task = group.tasks[0]
-    if (task.done) return
-    openConfirm(task, series)
-  } else {
-    selectedGroup.value = group
-    showLocationPicker.value = true
-  }
-}
-
-function openConfirmFromLocation(task) {
-  if (task.done) return
-  showLocationPicker.value = false
-  openConfirm(task, selectedSeries.value)
-}
-
-function closeLocationPicker() {
-  showLocationPicker.value = false
-  selectedGroup.value = null
-}
-
-function openConfirm(task, series) {
+function openConfirm(task) {
   if (task.done) return
   selectedTask.value = task
-  selectedSeries.value = series
   capturedPhoto.value = null
   evalResult.value = null
   locationStatus.value = 'checking'
   showModal.value = true
   trackEvent('task_start', { taskId: task.taskId, taskName: task.taskName })
-  // Start location check
   checkProximity()
 }
 
@@ -611,19 +594,6 @@ function closeConfirm() {
   selectedTask.value = null
   capturedPhoto.value = null
   evalResult.value = null
-  locationStatus.value = 'checking'
-  if (selectedGroup.value) {
-    refreshSelectedGroup()
-    showLocationPicker.value = true
-  }
-}
-
-function refreshSelectedGroup() {
-  if (!selectedGroup.value) return
-  const seriesId = selectedSeries.value?.id
-  const groups = getGroupedTasks(seriesId)
-  const updated = groups.find(g => g.taskName === selectedGroup.value.taskName)
-  if (updated) selectedGroup.value = updated
 }
 
 function triggerCamera() {
@@ -657,11 +627,12 @@ async function handlePhotoCapture(event) {
 }
 
 function handleCompleteTask() {
-  const task = allTasks.value.find(t => t.taskId === selectedTask.value.taskId)
+  const task = randomTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
+    || seriesTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
   if (task) {
     task.done = true
 
-    // Update progress
+    // Update progress store
     progressStore.completeTask(task.rewardPoint || 10)
 
     // Check sunny day badge
@@ -670,16 +641,17 @@ function handleCompleteTask() {
     }
 
     // Check series completion
-    const seriesId = task.seriesId
-    if (seriesId) {
-      const seriesKey = seriesId === 1 ? 'nature' : seriesId === 2 ? 'urban' : 'art'
-      if (seriesCompleted(seriesId)) {
+    if (selectedSeriesId.value) {
+      const allDone = seriesTasks.value.every(t => t.done)
+      if (allDone) {
+        const seriesKey = selectedSeriesId.value === 1 ? 'nature'
+          : selectedSeriesId.value === 2 ? 'urban' : 'art'
         progressStore.earnBadge(seriesKey)
       }
+      saveDailySeriesTasks(selectedSeriesId.value, seriesTasks.value)
+    } else {
+      saveDailyTasks(randomTasks.value)
     }
-
-    // Persist to localStorage
-    saveCachedSeriesTasks(allTasks.value)
 
     trackEvent('task_complete', {
       taskId: task.taskId,
@@ -705,6 +677,7 @@ function goNavigate(task) {
 
 onMounted(() => {
   progressStore.init()
-  loadOrFetchAllTasks()
+  if (!weather.temp) weather.fetchWeather()
+  loadOrFetchRandomTasks()
 })
 </script>

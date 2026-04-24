@@ -355,8 +355,9 @@ export function saveDailyTasks(tasks) {
 
 export function loadDailySeriesTasks(seriesId) {
   try {
-    const saved = JSON.parse(localStorage.getItem(DAILY_SERIES_KEY) || 'null')
-    if (saved && saved.date === getTodayKey() && saved.seriesId === seriesId) {
+    const key = `${DAILY_SERIES_KEY}_${seriesId}`
+    const saved = JSON.parse(localStorage.getItem(key) || 'null')
+    if (saved && saved.date === getTodayKey()) {
       return saved.tasks
     }
   } catch { /* ignore */ }
@@ -364,7 +365,8 @@ export function loadDailySeriesTasks(seriesId) {
 }
 
 export function saveDailySeriesTasks(seriesId, tasks) {
-  localStorage.setItem(DAILY_SERIES_KEY, JSON.stringify({
+  const key = `${DAILY_SERIES_KEY}_${seriesId}`
+  localStorage.setItem(key, JSON.stringify({
     date: getTodayKey(),
     seriesId,
     tasks,
