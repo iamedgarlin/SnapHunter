@@ -18,14 +18,34 @@
         <PhPawPrint :size="64" weight="duotone" color="#16a34a" />
       </div>
       <h1 class="text-4xl font-black text-emerald-900 relative z-10">SnapHunter</h1>
-      <p class="text-sm font-bold text-emerald-700 mt-1 mb-6 relative z-10">
+      <p class="text-sm font-bold text-emerald-700 mt-1 mb-5 relative z-10">
         Go outside. Hunt nature. Level up!
       </p>
 
-      <button class="btn-game text-lg font-black flex items-center justify-center gap-2 w-full relative z-10"
+      <!-- Nickname input -->
+      <div class="w-full relative z-10 mb-3">
+        <div class="relative">
+          <PhUser :size="20" weight="duotone" color="#16a34a"
+            class="absolute left-4 top-1/2 -translate-y-1/2" />
+          <input
+            v-model="nickname"
+            type="text"
+            maxlength="20"
+            placeholder="Enter your nickname..."
+            class="w-full pl-11 pr-4 py-3.5 rounded-2xl text-base font-bold text-emerald-900 placeholder-emerald-400 outline-none"
+            style="background: white; border: 3px solid #34d399; border-bottom: 5px solid #16a34a"
+            @keyup.enter="handleStart"
+          />
+        </div>
+      </div>
+
+      <button
+        class="btn-game text-lg font-black flex items-center justify-center gap-2 w-full relative z-10"
         style="background: #16a34a; border-bottom-color: #14532d"
-        @click="handleLogin">
-        <PhGoogleLogo :size="22" weight="duotone" color="white" />
+        :style="{ opacity: nickname.trim().length === 0 ? 0.5 : 1 }"
+        :disabled="nickname.trim().length === 0"
+        @click="handleStart">
+        <PhRocketLaunch :size="22" weight="duotone" color="white" />
         Start Adventure!
       </button>
       <p class="text-xs text-emerald-700 font-medium mt-3 relative z-10">
@@ -123,21 +143,34 @@
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { syncUserProfile, startSession, trackEvent } from '../services/analytics'
 import {
-  PhPawPrint, PhEye, PhGoogleLogo, PhStarFour,
+  PhPawPrint, PhEye, PhUser, PhRocketLaunch, PhStarFour,
   PhMedal, PhTree, PhSneaker, PhCompass
 } from '@phosphor-icons/vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const nickname = ref('')
 
-async function handleLogin() {
-  await authStore.loginWithGoogle()
-  if (authStore.isLoggedIn) {
-    router.push('/home')
-  }
+async function handleStart() {
+  const name = nickname.value.trim()
+  if (!name) return
+
+  // Create local user
+  authStore.login(name)
+
+  // Track the new user and start session
+  trackEvent('user_registered', { nickname: name })
+  startSession()
+
+  // Sync user profile to backend (fire and forget)
+  syncUserProfile()
+
+  router.push('/home')
 }
 
 const previewBadges = [
