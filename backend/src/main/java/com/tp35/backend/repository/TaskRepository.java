@@ -30,7 +30,7 @@ public class TaskRepository {
                 FROM task
                 WHERE is_active = true
                 ORDER BY RAND()
-                LIMIT 5
+                LIMIT 3
                 """;
 
         return jdbcTemplate.query(sql, (rs, rowNum) -> {
