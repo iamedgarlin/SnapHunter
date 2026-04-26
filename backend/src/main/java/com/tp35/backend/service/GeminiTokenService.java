@@ -62,11 +62,8 @@ public class GeminiTokenService {
         }
 
         String raw = response.toString();
-        String prefix = "auth_tokens/";
-        int start = raw.indexOf(prefix);
-
+        int start = raw.indexOf("auth_tokens/");
         if (start != -1) {
-            start += prefix.length();
             int end = raw.indexOf('"', start);
             String token = raw.substring(start, end);
             return """
