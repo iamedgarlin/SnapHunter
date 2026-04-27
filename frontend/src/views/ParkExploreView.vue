@@ -1,494 +1,922 @@
 <template>
-    <div class="flex flex-col h-full" style="font-family: var(--font-game)">
+  <div class="explore-root" style="font-family: var(--font-game)">
 
-        <!-- POI detail modal -->
-        <Transition name="pop">
-            <div v-if="activePoi" class="poi-overlay" @click="activePoi = null">
-                <div class="poi-detail-card" @click.stop>
-                    <div class="poi-type-badge" :style="`background:${typeColor(activePoi.type)}`">
-                        {{ typeLabel(activePoi.type) }}
-                    </div>
-                    <component :is="typeIcon(activePoi.type)" :size="32" weight="duotone"
-                        :color="typeColor(activePoi.type)" />
-                    <p class="text-base font-black text-gray-800 mt-1">{{ activePoi.name }}</p>
-                    <p class="text-xs text-gray-500 text-center leading-snug mt-1" style="max-width: 260px">
-                        {{ activePoi.story }}
-                    </p>
-                    <div class="poi-fun-fact" v-if="activePoi.funFact">
-                        <PhLightning :size="14" weight="duotone" color="#f59e0b" />
-                        <span>{{ activePoi.funFact }}</span>
-                    </div>
-                    <div v-if="activePoi.task" class="poi-task-card">
-                        <p class="text-xs font-black text-blue-700">Challenge</p>
-                        <p class="text-xs text-gray-600 mt-0.5">{{ activePoi.task }}</p>
-                    </div>
-                    <button class="poi-close-btn" @click="activePoi = null">Got it!</button>
-                </div>
-            </div>
-        </Transition>
-
-        <!-- Header -->
-        <div class="relative overflow-hidden px-4 pt-5 pb-4"
-            style="background: linear-gradient(160deg, #ddd6fe, #c4b5fd); border-radius: 0 0 28px 28px; border-bottom: 4px solid #8b5cf6">
-            <button class="absolute top-5 left-4 w-8 h-8 rounded-xl flex items-center justify-center"
-                style="background: rgba(255,255,255,0.5); border: 1.5px solid #a78bfa" @click="$router.back()">
-                <PhCaretLeft :size="18" weight="bold" color="#7c3aed" />
-            </button>
-            <div class="text-center">
-                <div
-                    class="inline-flex items-center gap-1 bg-white/50 rounded-full px-2.5 py-0.5 text-xs font-black text-violet-700 mb-1">
-                    <PhCastleTurret :size="12" weight="duotone" color="#7c3aed" />
-                    EPIC PARK
-                </div>
-                <h1 class="text-xl font-black text-violet-900">{{ parkData.name }}</h1>
-                <p class="text-xs text-violet-600 mt-0.5">{{ discoveredCount }}/{{ parkData.pois.length }} spots
-                    discovered</p>
-            </div>
-            <div class="flex justify-center gap-1.5 mt-2">
-                <div v-for="poi in parkData.pois" :key="poi.id"
-                    class="w-2.5 h-2.5 rounded-full transition-all duration-300" :style="isDiscovered(poi.id)
-                        ? 'background: #7c3aed; box-shadow: 0 0 6px rgba(124,58,237,0.4)'
-                        : 'background: white; opacity: 0.5'" />
-            </div>
-        </div>
-
-        <!-- Map -->
-        <div class="relative" style="height: 30vh; flex-shrink: 0">
-            <div id="explore-map" class="w-full h-full"></div>
-        </div>
-
-        <!-- POI list -->
-        <div class="flex-1 overflow-y-auto" style="background: #faf5ff">
-            <div class="px-4 pt-3 pb-6 flex flex-col gap-2.5">
-                <div class="flex items-center gap-1.5 mb-1">
-                    <PhMapPin :size="14" weight="duotone" color="#7c3aed" />
-                    <p class="text-xs font-black text-violet-700">Treasure Spots</p>
-                </div>
-
-                <div v-for="poi in sortedPois" :key="poi.id" class="poi-card"
-                    :class="{ 'poi-card-active': isNearby(poi) && !isDiscovered(poi.id), 'poi-card-discovered': isDiscovered(poi.id) }"
-                    @click="handlePoiTap(poi)">
-
-                    <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0" :style="isDiscovered(poi.id)
-                        ? `background:${typeColor(poi.type)}15; border:2px solid ${typeColor(poi.type)}40; border-bottom:3px solid ${typeColor(poi.type)}60`
-                        : isNearby(poi)
-                            ? 'background:#fef3c7; border:2px solid #fde68a; border-bottom:3px solid #f59e0b'
-                            : 'background:#f1f5f9; border:2px solid #e2e8f0; border-bottom:3px solid #cbd5e1'">
-                        <component :is="typeIcon(poi.type)" :size="20" weight="duotone"
-                            :color="isDiscovered(poi.id) ? typeColor(poi.type) : isNearby(poi) ? '#d97706' : '#94a3b8'" />
-                    </div>
-
-                    <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-1.5">
-                            <p class="text-sm font-black truncate"
-                                :style="isDiscovered(poi.id) ? `color:${typeColor(poi.type)}` : isNearby(poi) ? 'color:#92400e' : 'color:#6b7280'">
-                                {{ poi.name }}
-                            </p>
-                            <PhSealCheck v-if="isDiscovered(poi.id)" :size="13" weight="duotone"
-                                :color="typeColor(poi.type)" />
-                        </div>
-                        <p class="text-xs text-gray-400 mt-0.5 truncate">
-                            <template v-if="isNearby(poi) && !isDiscovered(poi.id)">
-                                <span class="font-black text-amber-600">Tap to discover!</span>
-                            </template>
-                            <template v-else-if="isDiscovered(poi.id)">
-                                {{ poi.brief }}
-                            </template>
-                            <template v-else>
-                                {{ formatPoiDistance(poi) }} away
-                            </template>
-                        </p>
-                    </div>
-
-                    <span class="text-xs font-bold px-2 py-0.5 rounded-lg flex-shrink-0" :style="isDiscovered(poi.id)
-                        ? `background:${typeColor(poi.type)}15; color:${typeColor(poi.type)}`
-                        : 'background:#f1f5f9; color:#94a3b8'">
-                        {{ typeLabel(poi.type) }}
-                    </span>
-                </div>
-            </div>
-        </div>
+    <!-- Top bar -->
+    <div class="explore-topbar">
+      <button class="topbar-back" @click="handleExit">
+        <PhArrowLeft :size="18" weight="bold" color="#16a34a" />
+      </button>
+      <div class="topbar-story">
+        <p class="topbar-title">{{ storyData.title }}</p>
+        <p class="topbar-park">{{ storyData.parkName }}</p>
+      </div>
+      <div class="topbar-progress" @click="mockSuccess" title="Debug: skip task">
+        <span class="topbar-progress-text">{{ completedCount }}/{{ storyData.tasks.length }}</span>
+      </div>
     </div>
+
+    <!-- Progress dots -->
+    <div class="progress-dots">
+      <template v-for="(task, i) in storyData.tasks" :key="task.id">
+        <div class="progress-dot" :class="{
+          'dot-completed': task.completed,
+          'dot-active': i === currentTaskIndex && !allCompleted,
+          'dot-locked': i > currentTaskIndex && !task.completed
+        }" @click="jumpToTask(i)">
+          <PhCheck v-if="task.completed" :size="10" weight="bold" color="white" />
+          <PhLock v-else-if="i > currentTaskIndex" :size="8" weight="bold" color="#cbd5e1" />
+          <span v-else class="dot-num">{{ i + 1 }}</span>
+        </div>
+        <div v-if="i < storyData.tasks.length - 1" class="progress-line"
+          :class="{ 'line-done': task.completed }" />
+      </template>
+    </div>
+
+    <!-- Main stage: owl + task name -->
+    <div class="explore-main-stage">
+
+      <!-- Eye rest overlay (inside stage) -->
+      <div v-if="showEyeRest" class="eye-rest-stage">
+        <div class="eye-rest-ring">
+          <svg viewBox="0 0 120 120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#e2e8f0" stroke-width="8" />
+            <circle cx="60" cy="60" r="52" fill="none" stroke="#10b981" stroke-width="8"
+              stroke-linecap="round"
+              :stroke-dasharray="2 * Math.PI * 52"
+              :stroke-dashoffset="2 * Math.PI * 52 * (1 - eyeRestProgress)"
+              style="transition: stroke-dashoffset 1s linear; transform: rotate(-90deg); transform-origin: center" />
+          </svg>
+          <div class="eye-rest-number">{{ eyeRestSeconds }}</div>
+        </div>
+        <PhEye :size="22" weight="duotone" color="#10b981" />
+        <p class="eye-rest-label">Look at the farthest tree!</p>
+      </div>
+
+      <!-- Celebration state -->
+      <div v-else-if="allCompleted && isExploring" class="celebration-stage">
+        <div class="confetti-wrap">
+          <div v-for="n in 20" :key="n" class="confetti-piece"
+            :style="`left:${Math.random()*100}%;animation-delay:${Math.random()*2}s;background:${['#f59e0b','#16a34a','#7c3aed','#ef4444','#3b82f6'][n%5]}`" />
+        </div>
+        <PhTrophy :size="48" weight="duotone" color="#f59e0b" />
+        <p class="celebration-title">Amazing, {{ userName }}!</p>
+        <p class="celebration-sub">You found all {{ storyData.tasks.length }} Time Fragments!</p>
+        <div class="celebration-xp">
+          <PhLightning :size="16" weight="duotone" color="#f59e0b" />
+          <span>+{{ totalXp }} XP earned</span>
+        </div>
+        <button class="btn-game celebration-btn" @click="handleExit">
+          <PhArrowLeft :size="14" weight="bold" color="white" />
+          <span>Back to Map</span>
+        </button>
+      </div>
+
+      <!-- Owl (normal state) -->
+      <template v-else>
+        <div class="owl-celebration" :class="{ 'speaking': isOwlTalking, 'listening': isListening && !isOwlTalking }">
+          <div class="owl-body-big">
+            <div class="owl-ears">
+              <div class="owl-ear left" />
+              <div class="owl-ear right" />
+            </div>
+            <div class="owl-eyes-big">
+              <div class="owl-eye-big"><div class="owl-pupil-big" /></div>
+              <div class="owl-eye-big"><div class="owl-pupil-big" /></div>
+            </div>
+            <div class="owl-beak-big" :class="{ 'beak-open': isOwlTalking }" />
+          </div>
+          <!-- Listening pulse rings -->
+          <div v-if="isListening && !isOwlTalking" class="listen-rings">
+            <div class="listen-ring r1" />
+            <div class="listen-ring r2" />
+            <div class="listen-ring r3" />
+          </div>
+        </div>
+        <!-- Current task label -->
+        <div v-if="isExploring && !allCompleted" class="task-label-pill">
+          <PhMapPin :size="12" weight="duotone" color="#16a34a" />
+          <span>{{ currentTask?.name }}</span>
+        </div>
+      </template>
+    </div>
+
+    <!-- Transcript area -->
+    <div class="transcript-area">
+      <p class="transcript-text" v-if="currentTranscript">{{ currentTranscript }}</p>
+      <p class="transcript-placeholder" v-else-if="isExploring">Ollie is listening...</p>
+      <p class="transcript-placeholder" v-else>Tap "Start Exploring" to begin!</p>
+    </div>
+
+    <!-- Education drawer (bottom swipe) -->
+    <div v-if="currentTask && isExploring && !allCompleted && !showEyeRest"
+      class="education-drawer" :class="{ 'drawer-open': isDrawerOpen }">
+      <div class="drawer-handle" @click="toggleDrawer">
+        <div class="drawer-handle-bar" />
+        <span>{{ isDrawerOpen ? 'Tap to hide' : 'Need a hint? Swipe up' }}</span>
+      </div>
+      <div class="drawer-content">
+        <!-- Reference photo -->
+        <div v-if="currentTask.refPhotoUrl" class="drawer-photo" @click="expandedPhoto = currentTask.refPhotoUrl">
+          <img :src="currentTask.refPhotoUrl" :alt="currentTask.name" />
+          <div class="drawer-photo-label">
+            <PhMagnifyingGlass :size="10" weight="bold" color="white" />
+            <span>{{ currentTask.refPhoto }}</span>
+          </div>
+        </div>
+        <!-- Edu cards scroll -->
+        <div v-if="currentTask.eduCards?.length" class="drawer-edu-scroll">
+          <div v-for="card in currentTask.eduCards" :key="card.id"
+            class="drawer-edu-card" :style="`border-color: ${card.color}25; background: ${card.color}08`">
+            <p class="drawer-edu-title" :style="`color: ${card.color}`">{{ card.title }}</p>
+            <p class="drawer-edu-desc">{{ card.desc }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Audio bar -->
+    <div class="audio-bar">
+      <div class="audio-left-section">
+        <div class="audio-dot" :class="wsState" />
+        <span class="audio-label">{{ wsStatusText }}</span>
+      </div>
+
+      <!-- Start button (before exploring) -->
+      <button v-if="!isExploring" class="btn-game start-btn" @click="startExploring">
+        <PhPlay :size="14" weight="fill" color="white" />
+        <span>Start Exploring</span>
+      </button>
+
+      <!-- Mic button + waveform (while exploring) -->
+      <div v-else class="mic-section">
+        <!-- Audio waveform visualizer -->
+        <div class="waveform" v-if="isListening || isOwlTalking">
+          <div v-for="n in 7" :key="n" class="wave-bar"
+            :class="{ 'wave-active': isListening || isOwlTalking }"
+            :style="`animation-delay: ${n * 0.08}s; background: ${isOwlTalking ? '#f59e0b' : '#16a34a'}`" />
+        </div>
+        <button class="audio-mic-btn" :class="{ 'mic-active': isListening }" @click="toggleMic">
+          <PhMicrophone v-if="isListening" :size="20" weight="duotone" color="white" />
+          <PhMicrophoneSlash v-else :size="20" weight="duotone" color="#94a3b8" />
+        </button>
+      </div>
+    </div>
+
+    <!-- Expanded photo modal -->
+    <Transition name="fade">
+      <div v-if="expandedPhoto" class="photo-modal" @click="expandedPhoto = null">
+        <img :src="expandedPhoto" class="photo-modal-img" />
+        <p class="photo-modal-hint">Tap anywhere to close</p>
+      </div>
+    </Transition>
+
+  </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+import { useProgressStore } from '../stores/progress'
+import { trackEvent } from '../services/analytics'
+import { GeminiLive } from '../services/geminiLive'
 import {
-    PhCastleTurret, PhCaretLeft, PhMapPin, PhSealCheck, PhLightning,
-    PhTree, PhBuildings, PhPalette
+  PhArrowLeft, PhArrowRight, PhCheck, PhLock, PhMicrophone, PhMicrophoneSlash,
+  PhImage, PhMapPin, PhMagnifyingGlass, PhPlay, PhEye,
+  PhTrophy, PhLightning, PhScroll, PhPaintBrush, PhPlus, PhBird
 } from '@phosphor-icons/vue'
 
-const POI_DISCOVER_RADIUS_KM = 0.05
-
-const ALL_PARKS = {
-    2: {
-        name: 'Fitzroy Gardens',
-        center: { lat: -37.8136, lng: 144.9793 },
-        zoom: 16,
-        pois: [
-            {
-                id: 'cooks-cottage', name: "Captain Cook's Cottage",
-                lat: -37.81375, lng: 144.97965, type: 'history',
-                brief: 'Oldest building in Australia, shipped from England',
-                story: "This cottage was built in 1755 in Yorkshire, England, by Captain James Cook's parents. In 1934, Sir Russell Grimwade purchased it for 800 pounds, had every brick numbered, packed into 253 cases and 40 barrels, and shipped it to Melbourne. Even the ivy growing on the walls came from cuttings of the original. It is the oldest building in Australia.",
-                funFact: "Captain Cook probably never actually lived here. His father built it after James had already left for the navy.",
-                task: 'Can you count how many windows the cottage has? Look carefully at both floors.',
-            },
-            {
-                id: 'fairies-tree', name: "Fairies' Tree",
-                lat: -37.81295, lng: 144.98020, type: 'culture',
-                brief: 'A tree stump carved with magical creatures',
-                story: "In 1934, artist Ola Cohn spent months carving fairies, pixies, kangaroos, emus, and possums into a 300-year-old red gum tree stump. She donated it to the children of Melbourne. The tiny carved figures tell stories of Australian bush creatures living alongside magical fairy-folk.",
-                funFact: "Ola Cohn carved the tree during the same year Cook's Cottage arrived. 1934 was a big year for Fitzroy Gardens.",
-                task: 'Find 3 different animals carved into the tree. What Australian animals can you spot?',
-            },
-            {
-                id: 'conservatory', name: 'Conservatory',
-                lat: -37.81355, lng: 144.97755, type: 'nature',
-                brief: 'Spanish mission style flower house since 1930',
-                story: "The Conservatory was built in 1930 in a beautiful Spanish mission architectural style. Inside, you will find stunning flower displays that change five times each year. This means the Conservatory is always in bloom with hydrangeas, fuchsias, begonias, cyclamens, and calceolarias. It is also a popular spot for wedding photographs.",
-                funFact: 'The flowers inside change 5 times a year, so every visit looks different.',
-                task: 'How many different colours of flowers can you spot? Try to count at least 5 different colours.',
-            },
-            {
-                id: 'tudor-village', name: 'Model Tudor Village',
-                lat: -37.81285, lng: 144.97990, type: 'history',
-                brief: 'Miniature English village, a thank-you gift',
-                story: "This tiny model village was created in the 1940s by Edgar Wilson, a retired London pensioner. He built it as a thank-you gift to Melbourne for sending food to Britain during World War II. The village has thatched cottages, a church, school, hotel, barns, and stocks, looking just like an English Tudor village from hundreds of years ago.",
-                funFact: 'The village was a thank-you for food parcels Melbourne sent to London during World War II.',
-                task: 'The village has tiny buildings. Can you find the church? How about the school?',
-            },
-            {
-                id: 'elm-avenue', name: 'Avenue of Elms',
-                lat: -37.81330, lng: 144.97680, type: 'nature',
-                brief: 'Walk under 150-year-old English elm trees',
-                story: "Fitzroy Gardens is famous for its grand avenues lined with English elm trees, many over 150 years old. These trees were planted in the 1860s and 1870s. In autumn, they turn brilliant gold and orange. The elm-lined paths follow the original Victorian-era design by Clement Hodgkinson.",
-                funFact: 'Some of these elm trees are among the oldest surviving English elms in the world.',
-                task: 'Stand under the biggest elm tree you can find. Can you wrap your arms around its trunk? How many people would it take?',
-            },
-            {
-                id: 'scarred-tree', name: 'Scarred Tree',
-                lat: -37.81410, lng: 144.97860, type: 'culture',
-                brief: 'Aboriginal scar tree with deep cultural meaning',
-                story: "This River Red Gum tree bears scars from bark removed by Wurundjeri Woi-wurrung people hundreds of years ago. Aboriginal people used the bark to make canoes, shields, and containers called coolamons. The scars are a powerful reminder that this land has been cared for by Indigenous Australians for tens of thousands of years.",
-                funFact: 'The Wurundjeri people called this area Yarro-yarro, meaning flowing river, referring to the nearby Yarra.',
-                task: 'Look at the scar on the tree. What shape is it? Can you guess what the bark was used to make?',
-            },
-        ],
-    },
-}
-
 const route = useRoute()
-const parkId = parseInt(route.query.parkId) || 2
-const parkData = ALL_PARKS[parkId] || ALL_PARKS[2]
+const router = useRouter()
+const authStore = useAuthStore()
+const progressStore = useProgressStore()
 
-const userPos = ref(null)
-const discovered = ref(new Set())
-const activePoi = ref(null)
+const EXPLORE_KEY = 'snaphunter_epic_progress'
+const userName = computed(() => authStore.user?.nickname || 'Explorer')
 
-let map = null
-let userMarker = null
-let watchId = null
-const poiMarkers = {}
-
-function typeColor(t) { return t === 'history' ? '#b45309' : t === 'culture' ? '#7c3aed' : '#16a34a' }
-function typeLabel(t) { return t === 'history' ? 'History' : t === 'culture' ? 'Culture' : 'Nature' }
-function typeIcon(t) { return t === 'history' ? PhBuildings : t === 'culture' ? PhPalette : PhTree }
-
-function haversine(a, b, c, d) {
-    const R = 6371, dLat = (c - a) * Math.PI / 180, dLng = (d - b) * Math.PI / 180
-    const x = Math.sin(dLat / 2) ** 2 + Math.cos(a * Math.PI / 180) * Math.cos(c * Math.PI / 180) * Math.sin(dLng / 2) ** 2
-    return R * 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
-}
-
-function isNearby(poi) {
-    if (!userPos.value) return false
-    return haversine(userPos.value.lat, userPos.value.lng, poi.lat, poi.lng) <= POI_DISCOVER_RADIUS_KM
-}
-function isDiscovered(poiId) { return discovered.value.has(poiId) }
-function formatPoiDistance(poi) {
-    if (!userPos.value) return '?'
-    const km = haversine(userPos.value.lat, userPos.value.lng, poi.lat, poi.lng)
-    return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`
-}
-
-const discoveredCount = computed(() => discovered.value.size)
-const sortedPois = computed(() => {
-    return [...parkData.pois].sort((a, b) => {
-        const aD = isDiscovered(a.id) ? 0 : 1, bD = isDiscovered(b.id) ? 0 : 1
-        if (aD !== bD) return aD - bD
-        const aN = isNearby(a) ? 0 : 1, bN = isNearby(b) ? 0 : 1
-        if (aN !== bN) return aN - bN
-        if (!userPos.value) return 0
-        return haversine(userPos.value.lat, userPos.value.lng, a.lat, a.lng) - haversine(userPos.value.lat, userPos.value.lng, b.lat, b.lng)
-    })
+// ─── Story Data ──────────────────────────────────────────────
+// Future: fetch from API by parkId
+const storyData = ref({
+  parkId: 2,
+  parkName: 'Fitzroy Gardens',
+  title: 'The Time Fragments',
+  tasks: [
+    {
+      id: 'scar-tree',
+      name: 'Secret of the Ancient Tree',
+      refPhoto: 'Scarred Tree Trunk',
+      refPhotoUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=400&h=200&fit=crop',
+      xp: 30,
+      eyeRestSec: 20,
+      completed: false,
+      eduCards: [
+        { id: 'history', color: '#b45309', title: 'Aboriginal Heritage', desc: 'Indigenous Australians used bark from trees to build canoes and shelters for thousands of years.' },
+        { id: 'shape', color: '#7c3aed', title: 'Shape Hunt', desc: 'The scar is long and oval-shaped, just like the canoe it became!' },
+      ],
+    },
+    {
+      id: 'tudor-village',
+      name: 'Counting in Tiny Town',
+      refPhoto: 'Model Tudor Village',
+      refPhotoUrl: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=200&fit=crop',
+      xp: 35,
+      eyeRestSec: 20,
+      completed: false,
+      eduCards: [
+        { id: 'colors', color: '#dc2626', title: 'Color Guide', desc: 'RED roofs look bright and warm. Can you tell red apart from brown and orange?' },
+        { id: 'math', color: '#2563eb', title: 'Math Challenge', desc: '5 red roofs + 3 brown roofs = 8 roofs total!' },
+        { id: 'history', color: '#b45309', title: 'History', desc: 'This tiny village was a gift to Melbourne after World War II, built brick by tiny brick!' },
+      ],
+    },
+    {
+      id: 'fairies-tree',
+      name: 'The Animal Party',
+      refPhoto: "Fairies' Tree Carvings",
+      refPhotoUrl: 'https://images.unsplash.com/photo-1518882460567-78ef8e3e7e32?w=400&h=200&fit=crop',
+      xp: 30,
+      eyeRestSec: 20,
+      completed: false,
+      eduCards: [
+        { id: 'animals', color: '#16a34a', title: 'Aussie Animals', desc: 'Look for koalas, possums, kookaburras, and fairy wrens carved into the bark!' },
+        { id: 'art', color: '#7c3aed', title: 'Art Fact', desc: 'Sculptor Ola Cohn carved these figures in the 1930s on a 300-year-old tree stump.' },
+      ],
+    },
+    {
+      id: 'cooks-cottage',
+      name: 'The Travelling House',
+      refPhoto: "Captain Cook's Cottage",
+      refPhotoUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=200&fit=crop',
+      xp: 35,
+      eyeRestSec: 20,
+      completed: false,
+      eduCards: [
+        { id: 'geo', color: '#2563eb', title: 'Geography', desc: 'England is over 16,000 km from Melbourne! The bricks traveled by ship for months.' },
+        { id: 'math', color: '#16a34a', title: 'Big Numbers', desc: '253 crates × 50 kg each = 12,650 kg total! That is heavier than 2 elephants!' },
+      ],
+    },
+  ],
 })
 
-function handlePoiTap(poi) {
-    if (isNearby(poi) || isDiscovered(poi.id)) {
-        discovered.value.add(poi.id)
-        persistDiscovered()
-        activePoi.value = poi
-        refreshPoiMarker(poi)
-        if ('speechSynthesis' in window) {
-            const u = new SpeechSynthesisUtterance(`You found ${poi.name}. ${poi.brief}`)
-            u.lang = 'en-AU'; u.rate = 0.9; speechSynthesis.speak(u)
-        }
-    } else {
-        map?.setView([poi.lat, poi.lng], 18)
-        poiMarkers[poi.id]?.openPopup()
+// ─── State ───────────────────────────────────────────────────
+const currentTaskIndex = ref(0)
+const isExploring = ref(false)
+const isOwlTalking = ref(false)
+const isListening = ref(false)
+const isDrawerOpen = ref(false)
+const wsState = ref('disconnected')
+const currentTranscript = ref('')
+const expandedPhoto = ref(null)
+
+// Eye rest
+const showEyeRest = ref(false)
+const eyeRestSeconds = ref(20)
+const eyeRestProgress = ref(0)
+let eyeRestTimer = null
+let gemini = null
+let hasGreeted = false  // ★ 确保只发一次开场消息
+
+// ─── Computed ────────────────────────────────────────────────
+const currentTask = computed(() => storyData.value.tasks[currentTaskIndex.value])
+const completedCount = computed(() => storyData.value.tasks.filter(t => t.completed).length)
+const allCompleted = computed(() => storyData.value.tasks.every(t => t.completed))
+const totalXp = computed(() => storyData.value.tasks.reduce((sum, t) => sum + t.xp, 0))
+
+const wsStatusText = computed(() => {
+  if (wsState.value === 'connecting') return 'Connecting to Ollie...'
+  if (wsState.value === 'connected') return isOwlTalking.value ? 'Ollie is talking' : isListening.value ? 'Listening...' : 'Mic off'
+  return 'Ready to explore'
+})
+
+// ─── Persistence ─────────────────────────────────────────────
+function loadProgress() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`${EXPLORE_KEY}_${storyData.value.parkId}`) || 'null')
+    if (saved?.completedTasks) {
+      const doneSet = new Set(saved.completedTasks)
+      storyData.value.tasks.forEach(t => {
+        if (doneSet.has(t.id)) t.completed = true
+      })
+      const firstIncomplete = storyData.value.tasks.findIndex(t => !t.completed)
+      currentTaskIndex.value = firstIncomplete >= 0 ? firstIncomplete : storyData.value.tasks.length - 1
     }
+  } catch { /* ignore */ }
 }
 
-function persistDiscovered() {
-    try { localStorage.setItem(`snaphunter_epic_${parkId}`, JSON.stringify([...discovered.value])) } catch (e) { }
-}
-function loadDiscovered() {
-    try { const r = localStorage.getItem(`snaphunter_epic_${parkId}`); if (r) discovered.value = new Set(JSON.parse(r)) } catch (e) { }
+function saveProgress() {
+  const completedTasks = storyData.value.tasks.filter(t => t.completed).map(t => t.id)
+  localStorage.setItem(`${EXPLORE_KEY}_${storyData.value.parkId}`, JSON.stringify({ completedTasks }))
 }
 
-function makePoiIcon(poi) {
-    const disc = isDiscovered(poi.id), near = isNearby(poi)
-    const fill = disc ? typeColor(poi.type) : near ? '#f59e0b' : '#94a3b8'
-    const stroke = disc ? typeColor(poi.type) : near ? '#b45309' : '#64748b'
-    const s = disc || near ? 24 : 20
-    return L.divIcon({
-        className: '',
-        html: `<div style="width:${s}px;height:${Math.round(s * 1.25)}px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.25))${near && !disc ? ';animation:poi-pulse 1.5s ease-in-out infinite' : ''}">
-      <svg viewBox="0 0 32 40" width="${s}" height="${Math.round(s * 1.25)}">
-        <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
-        <circle cx="16" cy="12" r="5" fill="white" opacity="0.9"/>
-      </svg></div>`,
-        iconSize: [s, Math.round(s * 1.25)], iconAnchor: [s / 2, Math.round(s * 1.25)], popupAnchor: [0, -Math.round(s * 1.25)],
-    })
+// ─── System Prompt Builder ───────────────────────────────────
+
+function buildSystemPrompt() {
+  const tasksJson = storyData.value.tasks.map(t => ({
+    id: t.id,
+    name: t.name,
+    completed: t.completed,
+    eduCards: t.eduCards?.map(c => c.desc) || [],
+  }))
+
+  return `You are Ollie the Owl, a friendly and enthusiastic voice guide for children aged 5-12.
+You are leading a child named "${userName.value}" through an outdoor scavenger hunt called "The Time Fragments" at ${storyData.value.parkName}.
+
+RULES:
+- Speak in short, simple sentences (2-3 at a time), then wait for the child to respond
+- Be warm, encouraging, and playful like a fun teacher
+- For each task, describe what the child should look for, then ask the question
+- When the child answers CORRECTLY, call update_task_progress with the taskId and nextAction "eye_rest"
+- If the child answers WRONG, give a gentle hint and let them try again (max 3 hints, then reveal answer)
+- Never reveal the answer on the first wrong attempt
+- For the LAST task (${storyData.value.tasks[storyData.value.tasks.length - 1].id}), use nextAction "celebration" instead of "eye_rest"
+- After eye rest, the app automatically advances. Then introduce the next task naturally.
+- Do NOT talk about screen time, myopia, or health. Focus on fun exploration and learning.
+- If the child goes off topic, gently guide them back
+
+TASKS (complete them in order):
+${JSON.stringify(tasksJson, null, 2)}
+
+Current task index: ${currentTaskIndex.value}
+
+Start by greeting ${userName.value} warmly and introducing the first uncompleted task.`
 }
 
-function poiPopupHtml(poi) {
-    const disc = isDiscovered(poi.id), near = isNearby(poi)
-    const color = disc ? typeColor(poi.type) : '#6b7280'
-    return `<div style="font-family:sans-serif;text-align:center;padding:3px 2px">
-    <p style="font-weight:900;font-size:12px;margin:0 0 2px;color:${color}">${poi.name}</p>
-    <p style="font-size:10px;color:#94a3b8;margin:0">${disc ? poi.brief : near ? 'Tap to discover!' : 'Get closer to unlock'}</p></div>`
+// ─── Logic ───────────────────────────────────────────────────
+
+function startExploring() {
+  isExploring.value = true
+  hasGreeted = false
+
+  gemini = new GeminiLive({
+    onStateChange: (state) => {
+      if (state === 'connecting') {
+        wsState.value = 'connecting'
+      } else if (state === 'listening') {
+        wsState.value = 'connected'
+        isOwlTalking.value = false
+
+        if (!hasGreeted && gemini) {
+          // ── 第一次 listening = setupComplete 刚到 ──
+          // 触发 Gemini 开场白，不开麦
+          hasGreeted = true
+          isListening.value = false
+          currentTranscript.value = 'Ollie is getting ready...'
+          gemini.triggerGreeting()
+        } else {
+          // ── 后续 listening = Gemini 说完一轮 ──
+          // 自动开麦，让用户回应
+          isListening.value = true
+          gemini.setMicMuted(false)
+        }
+      } else if (state === 'speaking') {
+        wsState.value = 'connected'
+        isOwlTalking.value = true
+        isListening.value = false
+        // Gemini 开始说话时关麦，避免回声
+        if (gemini) gemini.setMicMuted(true)
+      } else if (state === 'disconnected') {
+        wsState.value = 'disconnected'
+        isOwlTalking.value = false
+        isListening.value = false
+      }
+    },
+    onTranscript: (text) => {
+      currentTranscript.value = text
+    },
+    onFunctionCall: (payload) => {
+      handleGeminiFunctionCall(payload)
+    },
+    onError: (error) => {
+      console.error('[Explore] Gemini error:', error)
+      currentTranscript.value = 'Connection lost. Tap the mic to reconnect.'
+      wsState.value = 'disconnected'
+    },
+  })
+
+  gemini.connect(buildSystemPrompt())
+
+  trackEvent('explore_start', { parkId: storyData.value.parkId, parkName: storyData.value.parkName })
 }
 
-function refreshPoiMarker(poi) {
-    const m = poiMarkers[poi.id]; if (!m) return
-    m.setIcon(makePoiIcon(poi)); m.setPopupContent(poiPopupHtml(poi))
-}
-function refreshAllMarkers() { parkData.pois.forEach(p => refreshPoiMarker(p)) }
-
-function initMap() {
-    map = L.map('explore-map', { center: [parkData.center.lat, parkData.center.lng], zoom: parkData.zoom, zoomControl: false })
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map)
-    parkData.pois.forEach(poi => {
-        poiMarkers[poi.id] = L.marker([poi.lat, poi.lng], { icon: makePoiIcon(poi) }).addTo(map)
-            .bindPopup(poiPopupHtml(poi), { closeButton: false, offset: [0, -6] })
-    })
-    map.fitBounds(L.latLngBounds(parkData.pois.map(p => [p.lat, p.lng])), { padding: [40, 40] })
+function toggleMic() {
+  if (!gemini) return
+  isListening.value = !isListening.value
+  gemini.setMicMuted(!isListening.value)
 }
 
-function startTracking() {
-    if (!navigator.geolocation) return
-    watchId = navigator.geolocation.watchPosition(({ coords: { latitude: lat, longitude: lng } }) => {
-        userPos.value = { lat, lng }
-        if (!userMarker) {
-            userMarker = L.marker([lat, lng], {
-                icon: L.divIcon({
-                    className: '',
-                    html: `<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;border:3px solid white;box-shadow:0 0 0 4px rgba(59,130,246,0.25)"></div>`,
-                    iconSize: [16, 16], iconAnchor: [8, 8]
-                }), zIndexOffset: 1000
-            }).addTo(map)
-        } else { userMarker.setLatLng([lat, lng]) }
-        refreshAllMarkers()
-    }, err => console.warn('Geo:', err), { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 })
+function toggleDrawer() {
+  isDrawerOpen.value = !isDrawerOpen.value
 }
 
-onMounted(() => { loadDiscovered(); initMap(); startTracking() })
-onUnmounted(() => { if (watchId !== null) navigator.geolocation.clearWatch(watchId); map?.remove() })
+// ─── Gemini function call handler ────────────────────────────
+function handleGeminiFunctionCall(payload) {
+  if (payload.name === 'update_task_progress') {
+    const taskId = payload.args.taskId
+    const nextAction = payload.args.nextAction
+
+    const task = storyData.value.tasks.find(t => t.id === taskId)
+    if (task) {
+      task.completed = true
+      progressStore.addXp(task.xp || 30)
+      trackEvent('explore_task_complete', { parkId: storyData.value.parkId, taskId })
+    }
+
+    saveProgress()
+
+    if (nextAction === 'eye_rest') {
+      startEyeRest()
+    } else if (nextAction === 'next_task') {
+      advanceToNextTask()
+    } else if (nextAction === 'celebration') {
+      // allCompleted will trigger celebration UI automatically
+      currentTranscript.value = `Amazing ${userName.value}! You found all the Time Fragments!`
+      isOwlTalking.value = true
+      setTimeout(() => { isOwlTalking.value = false }, 3000)
+      trackEvent('explore_complete', { parkId: storyData.value.parkId })
+    }
+  }
+}
+
+function advanceToNextTask() {
+  if (currentTaskIndex.value < storyData.value.tasks.length - 1) {
+    currentTaskIndex.value++
+    isDrawerOpen.value = false
+    currentTranscript.value = `Great job! Now let's head to ${currentTask.value.name}.`
+    isOwlTalking.value = true
+    setTimeout(() => { isOwlTalking.value = false }, 3000)
+  }
+}
+
+function startEyeRest() {
+  const secs = currentTask.value?.eyeRestSec || 20
+  eyeRestSeconds.value = secs
+  eyeRestProgress.value = 0
+  showEyeRest.value = true
+  currentTranscript.value = 'Look at the farthest thing you can see and let your eyes rest!'
+
+  let elapsed = 0
+  eyeRestTimer = setInterval(() => {
+    elapsed++
+    eyeRestProgress.value = elapsed / secs
+    eyeRestSeconds.value = secs - elapsed
+    if (elapsed >= secs) {
+      clearInterval(eyeRestTimer)
+      showEyeRest.value = false
+      advanceToNextTask()
+    }
+  }, 1000)
+}
+
+// Debug shortcut
+function mockSuccess() {
+  handleGeminiFunctionCall({
+    name: 'update_task_progress',
+    args: {
+      taskId: currentTask.value.id,
+      nextAction: currentTaskIndex.value >= storyData.value.tasks.length - 1 ? 'celebration' : 'eye_rest',
+    },
+  })
+}
+
+function handleExit() {
+  if (gemini) { gemini.disconnect(); gemini = null }
+  router.push('/map')
+}
+
+function jumpToTask(index) {
+  if (index > currentTaskIndex.value && !storyData.value.tasks[index].completed) return
+  currentTaskIndex.value = index
+  isDrawerOpen.value = false
+}
+
+// ─── Lifecycle ───────────────────────────────────────────────
+onMounted(() => {
+  progressStore.init()
+  loadProgress()
+})
+
+onUnmounted(() => {
+  if (eyeRestTimer) clearInterval(eyeRestTimer)
+  if (gemini) { gemini.disconnect(); gemini = null }
+})
 </script>
 
-<style>
-@keyframes poi-pulse {
-
-    0%,
-    100% {
-        transform: scale(1)
-    }
-
-    50% {
-        transform: scale(1.15)
-    }
-}
-</style>
-
 <style scoped>
-.poi-card {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 14px;
-    border-radius: 18px;
-    background: white;
-    border: 2px solid #e2e8f0;
-    border-bottom: 3px solid #cbd5e1;
-    cursor: pointer;
-    transition: all 0.2s;
+/* ─── Root ─── */
+.explore-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: linear-gradient(180deg, #ecfdf5 0%, #f0fdf4 100%);
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
-.poi-card:active {
-    transform: scale(0.97)
+/* ─── Top bar ─── */
+.explore-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: white;
+  border-bottom: 3px solid #bbf7d0;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.topbar-back {
+  width: 36px; height: 36px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  background: #f0fdf4;
+  border: 2px solid #bbf7d0;
+  border-bottom: 3px solid #34d399;
+  flex-shrink: 0; cursor: pointer;
+}
+.topbar-back:active { transform: scale(0.9); }
+.topbar-story { flex: 1; min-width: 0; }
+.topbar-title {
+  font-size: 14px; font-weight: 900; color: #1f2937;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0;
+}
+.topbar-park { font-size: 11px; font-weight: 700; color: #6b7280; margin: 0; }
+.topbar-progress {
+  padding: 4px 10px; border-radius: 10px;
+  background: #f0fdf4; border: 2px solid #bbf7d0;
+  flex-shrink: 0; cursor: pointer;
+}
+.topbar-progress:active { transform: scale(0.9); }
+.topbar-progress-text { font-size: 12px; font-weight: 900; color: #16a34a; }
+
+/* ─── Progress dots ─── */
+.progress-dots {
+  display: flex; align-items: center; justify-content: center;
+  padding: 14px 24px; flex-shrink: 0;
+}
+.progress-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 2.5px solid #e2e8f0; background: white;
+  font-size: 11px; font-weight: 900; color: #94a3b8;
+  flex-shrink: 0; transition: all 0.3s; cursor: pointer;
+}
+.dot-num { font-size: 11px; }
+.dot-completed { background: #16a34a; border-color: #059669; }
+.dot-active {
+  border-color: #34d399; color: #16a34a;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+  animation: dot-pulse 2s ease-in-out infinite;
+}
+.dot-locked { background: #f8fafc; border-color: #e2e8f0; cursor: not-allowed; }
+@keyframes dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15); }
+  50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.08); }
+}
+.progress-line {
+  flex: 1; height: 3px; max-width: 40px;
+  background: #e2e8f0; border-radius: 2px;
+}
+.line-done { background: #34d399; }
+
+/* ─── Main stage ─── */
+.explore-main-stage {
+  flex: 1;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 16px 20px;
+  min-height: 0;
+  position: relative;
 }
 
-.poi-card-active {
-    border-color: #fde68a;
-    border-bottom-color: #f59e0b;
-    background: linear-gradient(135deg, #fffbeb, #fef3c7);
-    animation: poi-glow 2s ease-in-out infinite;
+/* ─── Owl ─── */
+.owl-celebration {
+  position: relative;
+  transition: transform 0.3s;
+}
+.owl-celebration.speaking { animation: owl-bounce 0.6s ease-in-out infinite; }
+.owl-celebration.listening { transform: scale(1.05); }
+@keyframes owl-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
-@keyframes poi-glow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0)
-    }
-
-    50% {
-        box-shadow: 0 0 12px 2px rgba(245, 158, 11, 0.15)
-    }
+.owl-body-big {
+  width: 120px; height: 120px;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 4px solid #d97706;
+  position: relative;
+  flex-direction: column; gap: 6px;
+  box-shadow: 0 10px 25px -5px rgba(217, 119, 6, 0.4);
 }
 
-.poi-card-discovered {
-    border-color: #e9d5ff;
-    border-bottom-color: #a78bfa;
-    background: #faf5ff;
-    animation: none;
+/* Owl ears */
+.owl-ears {
+  position: absolute; top: -12px; left: 50%;
+  transform: translateX(-50%); width: 80px;
+  display: flex; justify-content: space-between;
+}
+.owl-ear {
+  width: 0; height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 16px solid #d97706;
+}
+.owl-ear.left { transform: rotate(-15deg); }
+.owl-ear.right { transform: rotate(15deg); }
+
+.owl-eyes-big { display: flex; gap: 16px; }
+.owl-eye-big {
+  width: 28px; height: 28px;
+  background: white; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.owl-pupil-big {
+  width: 14px; height: 14px;
+  background: #1f2937; border-radius: 50%;
+  animation: owl-look 6s ease-in-out infinite;
+}
+@keyframes owl-look {
+  0%, 80%, 100% { transform: translateX(0); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-3px); }
+}
+.owl-beak-big {
+  width: 0; height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 14px solid #ea580c;
+  transition: transform 0.15s; margin-top: 4px;
+}
+.beak-open { animation: beak-talk 0.3s ease-in-out infinite; }
+@keyframes beak-talk {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.6) translateY(2px); }
 }
 
-.poi-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(0, 0, 0, 0.25);
+/* Listening pulse rings */
+.listen-rings {
+  position: absolute; inset: -20px;
+  pointer-events: none;
+}
+.listen-ring {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(16, 185, 129, 0.3);
+  animation: ring-expand 2s ease-out infinite;
+}
+.listen-ring.r2 { animation-delay: 0.5s; }
+.listen-ring.r3 { animation-delay: 1s; }
+@keyframes ring-expand {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0; }
 }
 
-.poi-detail-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 6px;
-    padding: 24px 24px 20px;
-    border-radius: 28px;
-    background: white;
-    border: 3px solid #ddd6fe;
-    border-bottom: 5px solid #8b5cf6;
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
-    font-family: var(--font-game), system-ui, sans-serif;
-    max-width: 320px;
-    margin: 0 16px;
+/* Task label pill */
+.task-label-pill {
+  display: flex; align-items: center; gap: 6px;
+  margin-top: 14px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: white;
+  border: 2px solid #bbf7d0;
+  border-bottom: 3px solid #34d399;
+  font-size: 12px; font-weight: 900; color: #16a34a;
 }
 
-.poi-type-badge {
-    font-size: 9px;
-    font-weight: 900;
-    color: white;
-    padding: 2px 10px;
-    border-radius: 8px;
-    letter-spacing: 1px;
-    margin-bottom: 2px;
+/* ─── Eye rest ─── */
+.eye-rest-stage {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 8px;
+}
+.eye-rest-ring {
+  position: relative; width: 120px; height: 120px;
+}
+.eye-rest-ring svg { width: 100%; height: 100%; }
+.eye-rest-number {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 36px; font-weight: 900; color: #10b981;
+}
+.eye-rest-label {
+  font-size: 14px; font-weight: 800; color: #065f46; margin: 0;
 }
 
-.poi-fun-fact {
-    display: flex;
-    align-items: flex-start;
-    gap: 6px;
-    background: #fffbeb;
-    border: 1.5px solid #fde68a;
-    border-radius: 12px;
-    padding: 8px 12px;
-    margin-top: 6px;
-    font-size: 11px;
-    color: #92400e;
-    line-height: 1.4;
+/* ─── Celebration ─── */
+.celebration-stage {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 6px;
+  position: relative; overflow: visible;
+}
+.celebration-title { font-size: 22px; font-weight: 900; color: #1f2937; margin: 4px 0 0; }
+.celebration-sub { font-size: 13px; font-weight: 700; color: #6b7280; margin: 0; }
+.celebration-xp {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 16px; font-weight: 900; color: #d97706;
+  margin-top: 4px;
+}
+.celebration-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 8px; padding: 12px 28px;
+  border-radius: 16px;
+  font-size: 14px;
 }
 
-.poi-task-card {
-    background: #eff6ff;
-    border: 1.5px solid #bfdbfe;
-    border-radius: 12px;
-    padding: 8px 12px;
-    margin-top: 4px;
-    width: 100%;
+/* Confetti */
+.confetti-wrap {
+  position: absolute; top: -60px; left: -40px; right: -40px;
+  height: 200px; pointer-events: none; overflow: hidden;
+}
+.confetti-piece {
+  position: absolute; top: -10px;
+  width: 8px; height: 8px;
+  border-radius: 2px;
+  animation: confetti-fall 3s ease-in-out infinite;
+}
+@keyframes confetti-fall {
+  0% { transform: translateY(-20px) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(200px) rotate(720deg); opacity: 0; }
 }
 
-.poi-close-btn {
-    margin-top: 10px;
-    padding: 8px 28px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-    border: none;
-    border-bottom: 3px solid #5b21b6;
-    color: white;
-    font-size: 13px;
-    font-weight: 900;
-    cursor: pointer;
-    font-family: var(--font-game), system-ui, sans-serif;
-    transition: transform 0.1s;
+/* ─── Transcript ─── */
+.transcript-area {
+  padding: 0 24px 12px;
+  text-align: center;
+  min-height: 60px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.transcript-text {
+  font-size: 17px; font-weight: 800; color: #1f2937; line-height: 1.4; margin: 0;
+}
+.transcript-placeholder {
+  font-size: 15px; font-weight: 700; color: #94a3b8; font-style: italic; margin: 0;
 }
 
-.poi-close-btn:active {
-    transform: scale(0.95)
+/* ─── Education Drawer ─── */
+.education-drawer {
+  background: white;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  border: 2px solid #e2e8f0;
+  border-bottom: none;
+  max-height: 44px;
+  overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
+}
+.education-drawer.drawer-open { max-height: 280px; overflow-y: auto; }
+
+.drawer-handle {
+  display: flex; flex-direction: column; align-items: center;
+  gap: 6px; padding: 10px 16px 6px;
+  cursor: pointer;
+  font-size: 11px; font-weight: 800; color: #64748b;
+  text-transform: uppercase;
+}
+.drawer-handle-bar {
+  width: 32px; height: 4px;
+  background: #cbd5e1; border-radius: 2px;
 }
 
-.pop-enter-active {
-    animation: pop-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)
+.drawer-content { padding: 8px 16px 16px; }
+
+.drawer-photo {
+  position: relative;
+  border-radius: 14px; overflow: hidden;
+  border: 2px solid #e2e8f0;
+  margin-bottom: 10px; cursor: pointer;
+}
+.drawer-photo:active { transform: scale(0.98); }
+.drawer-photo img {
+  width: 100%; height: 120px;
+  object-fit: cover; display: block;
+}
+.drawer-photo-label {
+  position: absolute; bottom: 6px; left: 6px;
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 8px;
+  background: rgba(0,0,0,0.55);
+  font-size: 10px; font-weight: 800; color: white;
 }
 
-.pop-leave-active {
-    animation: pop-out 0.3s ease forwards
+.drawer-edu-scroll {
+  display: flex; gap: 8px;
+  overflow-x: auto; padding-bottom: 4px;
+  scrollbar-width: none;
+}
+.drawer-edu-scroll::-webkit-scrollbar { display: none; }
+.drawer-edu-card {
+  flex-shrink: 0; width: 180px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1.5px solid;
+}
+.drawer-edu-title { font-size: 11px; font-weight: 900; margin: 0 0 3px; }
+.drawer-edu-desc { font-size: 10px; font-weight: 600; color: #64748b; margin: 0; line-height: 1.4; }
+
+/* ─── Audio bar ─── */
+.audio-bar {
+  display: flex; align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+  background: white;
+  border-top: 3px solid #bbf7d0;
+  flex-shrink: 0;
+  z-index: 10;
+}
+.audio-left-section {
+  display: flex; align-items: center; gap: 8px;
+}
+.audio-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.audio-dot.disconnected { background: #cbd5e1; }
+.audio-dot.connecting { background: #f59e0b; animation: pulse-dot 1s infinite; }
+.audio-dot.connected { background: #16a34a; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.3); }
+}
+.audio-label { font-size: 13px; font-weight: 800; color: #6b7280; }
+
+/* Start button */
+.start-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  flex: 1;
+  padding: 14px 20px;
+  margin-left: 12px;
+  background: #16a34a; color: white;
+  border: none; border-bottom: 4px solid #059669;
+  border-radius: 16px;
+  font-size: 15px; font-weight: 900;
+  cursor: pointer; font-family: inherit;
+}
+.start-btn:active { transform: translateY(2px); border-bottom-width: 2px; }
+
+/* Mic section */
+.mic-section {
+  display: flex; align-items: center; gap: 10px;
 }
 
-@keyframes pop-in {
-    from {
-        transform: scale(0.6);
-        opacity: 0
-    }
-
-    to {
-        transform: scale(1);
-        opacity: 1
-    }
+/* Waveform */
+.waveform {
+  display: flex; align-items: center; gap: 3px; height: 28px;
+}
+.wave-bar {
+  width: 3px; height: 6px;
+  border-radius: 2px;
+  transition: height 0.15s;
+}
+.wave-bar.wave-active {
+  animation: wave-bounce 0.6s ease-in-out infinite alternate;
+}
+@keyframes wave-bounce {
+  0% { height: 4px; }
+  100% { height: 22px; }
 }
 
-@keyframes pop-out {
-    from {
-        opacity: 1
-    }
-
-    to {
-        opacity: 0
-    }
+.audio-mic-btn {
+  width: 48px; height: 48px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #f1f5f9;
+  border: 2px solid #e2e8f0;
+  border-bottom: 3px solid #cbd5e1;
+  cursor: pointer; transition: all 0.2s;
+}
+.audio-mic-btn:active { transform: scale(0.9); }
+.mic-active {
+  background: #16a34a !important;
+  border-color: #059669 !important;
+  border-bottom-color: #047857 !important;
+  animation: mic-pulse 1.5s infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
 }
 
-#explore-map :deep(.leaflet-popup-content-wrapper) {
-    border-radius: 12px;
-    border: 1.5px solid #e2e8f0;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    padding: 2px
+/* ─── Photo modal ─── */
+.photo-modal {
+  position: fixed; inset: 0; z-index: 200;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 24px;
+}
+.photo-modal-img {
+  max-width: 100%; max-height: 70vh;
+  border-radius: 16px; object-fit: contain;
+}
+.photo-modal-hint {
+  font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.5);
+  margin-top: 12px;
 }
 
-#explore-map :deep(.leaflet-popup-tip-container) {
-    display: none
-}
-
-#explore-map :deep(.leaflet-popup-content) {
-    margin: 6px 10px
-}
+/* ─── Transitions ─── */
+.fade-enter-active { animation: fade-in 0.3s ease; }
+.fade-leave-active { animation: fade-out 0.3s ease forwards; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
 </style>
