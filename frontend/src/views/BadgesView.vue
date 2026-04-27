@@ -60,6 +60,101 @@
         </div>
       </div>
 
+      <!-- Epic Park Badges -->
+      <div>
+        <div class="flex items-center gap-2 mb-3">
+          <PhMapTrifold :size="16" weight="duotone" color="#f59e0b" />
+          <p class="text-sm font-black text-gray-700">Epic Park Badges</p>
+        </div>
+
+        <!-- Individual epic park badges -->
+        <div class="grid grid-cols-3 gap-3 mb-3">
+          <div v-for="badge in epicParkBadges" :key="badge.id"
+            class="flex flex-col items-center gap-2 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
+            :style="isBadgeEarned(badge.id)
+              ? 'background: #ecfdf5; border: 2px solid #a7f3d0; border-bottom: 3px solid #34d399'
+              : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
+            @click="openBadgeDetail(badge)">
+            <div class="w-14 h-14 rounded-2xl overflow-hidden relative"
+              :style="isBadgeEarned(badge.id)
+                ? 'border: 2px solid #a7f3d0; border-bottom: 3px solid #34d399'
+                : 'border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'">
+              <img :src="badge.image" :alt="badge.name"
+                class="w-full h-full object-contain p-1"
+                :class="{ 'grayscale opacity-40': !isBadgeEarned(badge.id) }" />
+              <!-- Lock overlay for unearned -->
+              <div v-if="!isBadgeEarned(badge.id)"
+                class="absolute inset-0 flex items-center justify-center">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center"
+                  style="background: rgba(226,232,240,0.9); border: 1.5px solid white">
+                  <PhLock :size="12" weight="bold" color="#94a3b8" />
+                </div>
+              </div>
+            </div>
+            <p class="text-xs font-black text-center leading-tight"
+              :style="isBadgeEarned(badge.id) ? 'color: #065f46' : 'color: #94a3b8'">
+              {{ badge.name }}
+            </p>
+            <div v-if="isBadgeEarned(badge.id)"
+              class="text-xs font-black px-2 py-0.5 rounded-lg"
+              style="background: #a7f3d0; color: #065f46">
+              Earned!
+            </div>
+            <p v-else class="text-xs font-semibold text-gray-400 text-center leading-tight">
+              Tap to see how
+            </p>
+          </div>
+        </div>
+
+        <!-- Master epic badge (Melbourne Epic) -->
+        <div
+          class="flex items-center gap-4 p-4 rounded-2xl cursor-pointer active:scale-95 transition-all"
+          :style="isBadgeEarned(epicMasterBadge.id)
+            ? 'background: linear-gradient(135deg, #ecfdf5, #fef3c7); border: 2px solid #a7f3d0; border-bottom: 4px solid #fbbf24'
+            : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1'"
+          @click="openBadgeDetail(epicMasterBadge)">
+          <div class="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 relative"
+            :style="isBadgeEarned(epicMasterBadge.id)
+              ? 'border: 2px solid #fde68a; border-bottom: 3px solid #fbbf24'
+              : 'border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'">
+            <img :src="epicMasterBadge.image" :alt="epicMasterBadge.name"
+              class="w-full h-full object-contain p-1"
+              :class="{ 'grayscale opacity-40': !isBadgeEarned(epicMasterBadge.id) }" />
+            <div v-if="!isBadgeEarned(epicMasterBadge.id)"
+              class="absolute inset-0 flex items-center justify-center">
+              <div class="w-6 h-6 rounded-full flex items-center justify-center"
+                style="background: rgba(226,232,240,0.9); border: 1.5px solid white">
+                <PhLock :size="12" weight="bold" color="#94a3b8" />
+              </div>
+            </div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-black leading-tight"
+              :style="isBadgeEarned(epicMasterBadge.id) ? 'color: #92400e' : 'color: #94a3b8'">
+              {{ epicMasterBadge.name }}
+            </p>
+            <p class="text-xs font-semibold mt-0.5 leading-tight"
+              :style="isBadgeEarned(epicMasterBadge.id) ? 'color: #d97706' : 'color: #cbd5e1'">
+              {{ epicMasterBadge.description }}
+            </p>
+            <!-- Progress dots -->
+            <div class="flex items-center gap-1.5 mt-2">
+              <div v-for="park in epicParkBadges" :key="park.id"
+                class="w-4 h-4 rounded-full flex items-center justify-center"
+                :style="isBadgeEarned(park.id)
+                  ? 'background: #34d399; border: 1.5px solid #10b981'
+                  : 'background: #e2e8f0; border: 1.5px solid #cbd5e1'">
+                <PhCheck v-if="isBadgeEarned(park.id)" :size="10" weight="bold" color="white" />
+              </div>
+              <span class="text-xs font-bold ml-1"
+                :style="isBadgeEarned(epicMasterBadge.id) ? 'color: #10b981' : 'color: #94a3b8'">
+                {{ epicParkEarnedCount }} / {{ epicParkBadges.length }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Achievement badges -->
       <div>
         <div class="flex items-center gap-2 mb-3">
@@ -106,8 +201,17 @@
       <div class="w-full max-w-sm bg-white rounded-3xl p-6 flex flex-col items-center gap-4"
         style="border-bottom: 4px solid #fbbf24">
 
-        <!-- Large badge icon -->
-        <div class="w-24 h-24 rounded-3xl flex items-center justify-center"
+        <!-- Large badge icon / image -->
+        <div v-if="detailBadge.image"
+          class="w-24 h-24 rounded-3xl overflow-hidden"
+          :style="isBadgeEarned(detailBadge.id)
+            ? 'border: 3px solid #a7f3d0; border-bottom: 5px solid #34d399'
+            : 'border: 3px solid #e2e8f0; border-bottom: 5px solid #cbd5e1'">
+          <img :src="detailBadge.image" :alt="detailBadge.name"
+            class="w-full h-full object-contain p-1"
+            :class="{ 'grayscale opacity-40': !isBadgeEarned(detailBadge.id) }" />
+        </div>
+        <div v-else class="w-24 h-24 rounded-3xl flex items-center justify-center"
           :style="isBadgeEarned(detailBadge.id)
             ? `background: ${detailBadge.iconBg || '#fef3c7'}; border: 3px solid ${detailBadge.borderColor || '#fde68a'}; border-bottom: 5px solid ${detailBadge.borderBottomColor || '#fbbf24'}`
             : 'background: #f1f5f9; border: 3px solid #e2e8f0; border-bottom: 5px solid #cbd5e1'">
@@ -155,8 +259,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useProgressStore } from '../stores/progress'
 import {
-  PhMedal, PhStarFour, PhTrophy, PhLock, PhCheckCircle,
-  PhTree, PhBuildings, PhPaintBrush,
+  PhMedal, PhStarFour, PhTrophy, PhLock, PhCheckCircle, PhCheck,
+  PhTree, PhBuildings, PhPaintBrush, PhMapTrifold,
   PhSneaker, PhFlame, PhCamera, PhMapPin, PhSun
 } from '@phosphor-icons/vue'
 
@@ -203,6 +307,40 @@ const seriesBadges = [
   },
 ]
 
+// Epic Park badges (individual parks)
+const epicParkBadges = [
+  {
+    id: 'epic_flinders',
+    name: 'Flinders St Station',
+    description: 'Complete the Flinders Street Station epic park',
+    howToGet: 'Visit and complete all tasks at Flinders Street Station to unlock this badge.',
+    image: '/flinders.png',
+  },
+  {
+    id: 'epic_fitzroy',
+    name: 'Fitzroy Garden',
+    description: 'Complete the Fitzroy Garden epic park',
+    howToGet: 'Visit and complete all tasks at Fitzroy Garden to unlock this badge.',
+    image: '/fitzory.png',
+  },
+  {
+    id: 'epic_greatoceanroad',
+    name: 'Great Ocean Road',
+    description: 'Complete the Great Ocean Road epic park',
+    howToGet: 'Visit and complete all tasks at Great Ocean Road to unlock this badge.',
+    image: '/greatoceanroad.png',
+  },
+]
+
+// Master epic badge (complete all epic parks)
+const epicMasterBadge = {
+  id: 'epic_master',
+  name: 'Melbourne Epic Explorer',
+  description: 'Complete all Epic Parks to become a true Melbourne explorer!',
+  howToGet: 'Unlock all three Epic Park badges (Flinders St Station, Fitzroy Garden, and Great Ocean Road) to earn this ultimate badge.',
+  image: '/melbepic.png',
+}
+
 const achievementBadges = [
   { id: 'first_step',   name: DEFS.first_step.name,   description: DEFS.first_step.description,   howToGet: DEFS.first_step.howToGet,   icon: PhSneaker, color: '#10b981', iconBg: '#f0fdf4',  borderColor: '#bbf7d0', borderBottomColor: '#34d399' },
   { id: 'on_fire',      name: DEFS.on_fire.name,      description: DEFS.on_fire.description,      howToGet: DEFS.on_fire.howToGet,      icon: PhFlame,   color: '#f59e0b', iconBg: '#fffbeb',  borderColor: '#fde68a', borderBottomColor: '#fbbf24' },
@@ -212,11 +350,15 @@ const achievementBadges = [
   { id: 'sun_chaser',   name: DEFS.sun_chaser.name,   description: DEFS.sun_chaser.description,   howToGet: DEFS.sun_chaser.howToGet,   icon: PhSun,     color: '#f59e0b', iconBg: '#fffbeb',  borderColor: '#fde68a', borderBottomColor: '#fbbf24' },
 ]
 
-const totalCount = seriesBadges.length + achievementBadges.length
+const allBadges = [...seriesBadges, ...epicParkBadges, epicMasterBadge, ...achievementBadges]
+const totalCount = allBadges.length
 
 const earnedCount = computed(() => {
-  const all = [...seriesBadges, ...achievementBadges]
-  return all.filter(b => progressStore.earnedBadgeSet.has(b.id)).length
+  return allBadges.filter(b => progressStore.earnedBadgeSet.has(b.id)).length
+})
+
+const epicParkEarnedCount = computed(() => {
+  return epicParkBadges.filter(b => progressStore.earnedBadgeSet.has(b.id)).length
 })
 
 function isBadgeEarned(badgeId) {

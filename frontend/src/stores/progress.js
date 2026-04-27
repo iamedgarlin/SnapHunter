@@ -38,6 +38,27 @@ const BADGE_DEFINITIONS = {
     description: 'Complete all Art Series tasks in one day',
     howToGet: 'Complete all 5 Art Series tasks in a single day to earn this badge.',
   },
+  // Epic Park badges
+  epic_flinders: {
+    id: 'epic_flinders', type: 'epic_park', name: 'Flinders St Station',
+    description: 'Complete the Flinders Street Station epic park',
+    howToGet: 'Visit and complete all tasks at Flinders Street Station to unlock this badge.',
+  },
+  epic_fitzroy: {
+    id: 'epic_fitzroy', type: 'epic_park', name: 'Fitzroy Garden',
+    description: 'Complete the Fitzroy Garden epic park',
+    howToGet: 'Visit and complete all tasks at Fitzroy Garden to unlock this badge.',
+  },
+  epic_greatoceanroad: {
+    id: 'epic_greatoceanroad', type: 'epic_park', name: 'Great Ocean Road',
+    description: 'Complete the Great Ocean Road epic park',
+    howToGet: 'Visit and complete all tasks at Great Ocean Road to unlock this badge.',
+  },
+  epic_master: {
+    id: 'epic_master', type: 'epic_park', name: 'Melbourne Epic Explorer',
+    description: 'Complete all Epic Parks to become a true Melbourne explorer!',
+    howToGet: 'Unlock all three Epic Park badges (Flinders St Station, Fitzroy Garden, and Great Ocean Road) to earn this ultimate badge.',
+  },
   // Achievement badges
   first_step: {
     id: 'first_step', type: 'achievement', name: 'First Step',
@@ -71,12 +92,16 @@ const BADGE_DEFINITIONS = {
   },
 }
 
+// All three individual epic park badge ids
+const EPIC_PARK_IDS = ['epic_flinders', 'epic_fitzroy', 'epic_greatoceanroad']
+
 // ─── Title definitions ─────────────────────────────────────
 const TITLE_DEFINITIONS = [
   { id: 'first_timer', name: 'First Timer', requirement: 'Complete first task', unlockBadge: 'first_step' },
   { id: 'nature_explorer', name: 'Nature Explorer', requirement: 'Earn Nature Explorer badge', unlockBadge: 'nature' },
   { id: 'city_scout', name: 'City Scout', requirement: 'Earn City Hunter badge', unlockBadge: 'urban' },
   { id: 'week_warrior', name: 'Week Warrior', requirement: '7-day streak', unlockBadge: 'week_warrior' },
+  { id: 'epic_explorer', name: 'Epic Explorer', requirement: 'Complete all Epic Parks', unlockBadge: 'epic_master' },
 ]
 
 function getTodayKey() {
@@ -258,6 +283,27 @@ export const useProgressStore = defineStore('progress', () => {
     save()
   }
 
+  /**
+   * Call when an epic park is completed.
+   * @param {'epic_flinders' | 'epic_fitzroy' | 'epic_greatoceanroad'} epicParkId
+   * @param {number} xpReward - XP to award (default 50)
+   */
+  function completeEpicPark(epicParkId, xpReward = 50) {
+    // Award the individual epic park badge
+    earnBadge(epicParkId)
+    progress.value.xp += xpReward
+
+    // Check if all three epic parks are now completed
+    const allDone = EPIC_PARK_IDS.every(id =>
+      progress.value.earnedBadges.includes(id)
+    )
+    if (allDone) {
+      earnBadge('epic_master')
+    }
+
+    save()
+  }
+
   function earnBadge(badgeId) {
     if (!progress.value.earnedBadges.includes(badgeId)) {
       progress.value.earnedBadges.push(badgeId)
@@ -328,9 +374,10 @@ export const useProgressStore = defineStore('progress', () => {
     refreshesLeftToday, weekStreakDisplay,
     // Actions
     init, save, addXp, completeTask, addPhoto, visitPark,
-    completeSunnyTask, earnBadge, setActiveTitle, useRefresh, resetAll,
+    completeSunnyTask, completeEpicPark, earnBadge, setActiveTitle,
+    useRefresh, resetAll,
     // Constants (export for other views)
-    BADGE_DEFINITIONS, TITLE_DEFINITIONS,
+    BADGE_DEFINITIONS, TITLE_DEFINITIONS, EPIC_PARK_IDS,
   }
 })
 
