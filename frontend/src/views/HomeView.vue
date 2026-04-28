@@ -122,20 +122,22 @@
               <PhTarget :size="18" weight="duotone" color="#10b981" />
               <p class="text-base font-black text-gray-800">Today's Mission</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-3">
               <span class="text-xs font-black text-emerald-700 bg-emerald-100 rounded-xl px-2 py-1">
-                {{ completedRandomCount }} / {{ randomTasks.length }}
+                {{ completedRandomCount }}/{{ randomTasks.length }} done
               </span>
-              <button @click="handleRefresh"
-                class="w-7 h-7 rounded-xl flex items-center justify-center relative"
-                :style="progressStore.refreshesLeftToday > 0
-                  ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
-                  : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
-                :disabled="progressStore.refreshesLeftToday <= 0">
-                <PhArrowsClockwise :size="14" weight="duotone"
-                  :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'" />
-              </button>
-              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
+              <div class="flex items-center gap-1">
+                <button @click="handleRefresh"
+                  class="w-7 h-7 rounded-xl flex items-center justify-center relative"
+                  :style="progressStore.refreshesLeftToday > 0
+                    ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
+                    : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+                  :disabled="progressStore.refreshesLeftToday <= 0">
+                  <PhArrowsClockwise :size="14" weight="duotone"
+                    :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'" />
+                </button>
+                <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3 rerolls</span>
+              </div>
             </div>
           </div>
           <div v-if="loadingTasks" class="flex items-center justify-center py-6 gap-2">
@@ -187,22 +189,23 @@
               <component :is="currentSeries?.icon" :size="18" weight="duotone" :color="currentSeries?.color" />
               <p class="text-base font-black text-gray-800">{{ currentSeries?.name }} Tasks</p>
             </div>
-            <div class="flex items-center gap-2">
-              <button @click="handleSeriesRefresh"
-                class="w-7 h-7 rounded-xl flex items-center justify-center"
-                :style="progressStore.refreshesLeftToday > 0
-                  ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}; border-bottom: 3px solid ${currentSeries?.borderBottomColor}`
-                  : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
-                :disabled="progressStore.refreshesLeftToday <= 0">
-                <PhArrowsClockwise :size="14" weight="duotone"
-                  :color="progressStore.refreshesLeftToday > 0 ? currentSeries?.color : '#94a3b8'" />
-              </button>
-              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
-              <button @click="clearSeries"
-                class="w-7 h-7 rounded-xl flex items-center justify-center"
-                style="background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 2px solid #cbd5e1">
-                <PhX :size="14" weight="bold" color="#94a3b8" />
-              </button>
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-black rounded-xl px-2 py-1"
+                :style="`color: ${currentSeries?.color}; background: ${currentSeries?.iconBg}`">
+                {{ completedSeriesCount }}/{{ seriesTasks.length }} done
+              </span>
+              <div class="flex items-center gap-1">
+                <button @click="handleSeriesRefresh"
+                  class="w-7 h-7 rounded-xl flex items-center justify-center"
+                  :style="progressStore.refreshesLeftToday > 0
+                    ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}; border-bottom: 3px solid ${currentSeries?.borderBottomColor}`
+                    : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+                  :disabled="progressStore.refreshesLeftToday <= 0">
+                  <PhArrowsClockwise :size="14" weight="duotone"
+                    :color="progressStore.refreshesLeftToday > 0 ? currentSeries?.color : '#94a3b8'" />
+                </button>
+                <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3 rerolls</span>
+              </div>
             </div>
           </div>
           <div v-if="loadingSeriesTasks" class="flex items-center justify-center py-6 gap-2">
@@ -361,7 +364,7 @@ import {
   PhSun, PhCloud, PhCloudRain, PhPawPrint, PhCompass, PhLightning,
   PhTarget, PhCheckCircle, PhXCircle, PhNavigationArrow,
   PhCamera, PhShuffle, PhStarFour, PhArrowsClockwise, PhSpinner,
-  PhTree, PhBuildings, PhPaintBrush, PhCheck, PhCaretDown, PhX,
+  PhTree, PhBuildings, PhPaintBrush, PhCheck, PhCaretDown,
   PhMapPin, PhWarning
 } from '@phosphor-icons/vue'
 
@@ -399,6 +402,10 @@ const canTakePhoto = computed(() => {
 
 const completedRandomCount = computed(() =>
   randomTasks.value.filter(t => t.done).length
+)
+
+const completedSeriesCount = computed(() =>
+  seriesTasks.value.filter(t => t.done).length
 )
 
 const seriesList = [
@@ -519,11 +526,6 @@ function selectSeries(id) {
   selectedSeriesId.value = id
   showSeriesDropdown.value = false
   loadOrFetchSeriesTasks(id)
-}
-
-function clearSeries() {
-  selectedSeriesId.value = null
-  seriesTasks.value = []
 }
 
 // ─── Location verification ─────────────────────────────────
