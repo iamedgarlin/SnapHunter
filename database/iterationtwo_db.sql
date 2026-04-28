@@ -86,6 +86,7 @@ VALUES (
     );
 
 -- insert question data for the fiztory garden story
+-- Question 1: The Cooks' Cottage
 INSERT INTO
     question (
         story_id,
@@ -104,6 +105,7 @@ VALUES (
         20
     );
 
+-- Question 2: Scar Tree
 INSERT INTO
     question (
         story_id,
@@ -112,15 +114,36 @@ INSERT INTO
         `context`,
         answer,
         reward
-    )VALUES (
-        1,
-        2,
-        'PART A — Scar Tree: You can see the Wurundjeri people carefully cut away a piece of bark from this tree long ago. What do you think they made with it? A canoe, a shelter, or a fire? PART B — Tiny Village after Part A is correct: This tiny village was made by a 77-year-old man in England as a thank-you gift to Melbourne — he built every single building by hand! How many little buildings can you count inside the fence?',
-        'PART A nav: Walk toward the big open lawn. Look for a tall eucalyptus tree with a long dark scar on its trunk — like an old wound that never healed. Stand right in front of it. PART B nav: Now walk just a little further. Look for a tiny village behind a low fence — the little houses only come up to your knees!',
-        'PART A — Accept: canoe, boat, vessel, water transport. Hint 1: Look at the shape of the scar — long, curved, hollow. Imagine sitting inside that shape on the water. Hint 2: The Yarra River is nearby. What could you build from one big curved piece of bark to cross the water? PART B — Accept: any number between 20 and 25. Then confirm real answer is about 23. Hint 1: Start at one end of the fence, work around. Count every rooftop — big and tiny both count. Hint 2: Find the little church with the steeple first, then count outward from there.',
-        20
-    );
+    )
+VALUES (
+    1,
+    2,
+    'Scar Tree: You can see the Wurundjeri people carefully cut away a piece of bark from this tree long ago. What do you think they made with it? A canoe, a shelter, or a fire?',
+    'Walk toward the big open lawn. Look for a tall eucalyptus tree with a long dark scar on its trunk — like an old wound that never healed. Stand right in front of it.',
+    'Accept: canoe, boat, vessel, water transport. Hint 1: Look at the shape of the scar — long, curved, hollow. Imagine sitting inside that shape on the water. Hint 2: The Yarra River is nearby. What could you build from one big curved piece of bark to cross the water?',
+    20
+);
 
+-- Question 3: Tudor Village
+INSERT INTO
+    question (
+        story_id,
+        order_index,
+        `description`,
+        `context`,
+        answer,
+        reward
+    )
+VALUES (
+    1,
+    3,
+    'Tiny Village: This tiny village was made by a 77-year-old man in England as a thank-you gift to Melbourne — he built every single building by hand! How many little buildings can you count inside the fence?',
+    'Now walk just a little further. Look for a tiny village behind a low fence — the little houses only come up to your knees!',
+    'Accept: any number between 20 and 25. Then confirm real answer is about 23. Hint 1: Start at one end of the fence, work around. Count every rooftop — big and tiny both count. Hint 2: Find the little church with the steeple first, then count outward from there.',
+    20
+);
+
+-- Question 4: Playground
 INSERT INTO
     question (
         story_id,
@@ -131,7 +154,7 @@ INSERT INTO
         reward
     )VALUES (
         1,
-        3,
+        4,
         'TYPE: play — no question asked. Deliver play_instruction, then wait silently. When child returns and says ANYTHING, mark complete. Play instruction: You have discovered so many secrets today — a cottage that crossed an ocean in numbered boxes, a 40,000-year-old canoe scar, and a tiny thank-you village from England! Now it is time to celebrate. Go play on the giraffe swing and the dinosaur slide for twenty minutes. Ollie will be watching from the trees. Come back and tell me which one was your favourite! Closing: You are a true Fitzroy Gardens explorer! You now know secrets that most people who walk through this park never find out. The Wurundjeri people were here first, a cottage crossed an ocean in pieces, and a kind old man built a tiny village as a thank-you. This park holds thousands of years of stories — and YOU know all of them.',
         'Head to the playground — look for the tall giraffe swing and the big dinosaur slide. You will definitely see them, they are hard to miss!',
         'Accept: anything. Any word the child says when they return counts as a correct answer. Do not quiz them.',
