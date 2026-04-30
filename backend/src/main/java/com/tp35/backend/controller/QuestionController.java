@@ -24,6 +24,11 @@ public class QuestionController {
             @RequestParam Integer storyId,
             @RequestParam Integer orderIndex
     ) {
-        return ResponseEntity.ok(questionService.getQuestionByStoryIdAndOrderIndex(storyId, orderIndex));
+        QuestionDTO question = questionService.getQuestionByStoryIdAndOrderIndex(storyId, orderIndex);
+        if (question != null) {
+            return ResponseEntity.ok(question);
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 }
