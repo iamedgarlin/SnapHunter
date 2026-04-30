@@ -1,5 +1,7 @@
 package com.tp35.backend.repository;
 
+import java.util.List;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -27,7 +29,7 @@ public class QuestionRepository {
               AND order_index = ?
             """;
 
-        return jdbcTemplate.queryForObject(sql, (rs, rowNum) -> {
+        List<QuestionDTO> questions = jdbcTemplate.query(sql, (rs, rowNum) -> {
             QuestionDTO question = new QuestionDTO();
             question.setQuestionId(rs.getInt("question_id"));
             question.setDescription(rs.getString("description"));
@@ -36,5 +38,7 @@ public class QuestionRepository {
             question.setReward(rs.getInt("reward"));
             return question;
         }, storyId, orderIndex);
+
+        return questions.isEmpty() ? null : questions.get(0);
     }
 }
