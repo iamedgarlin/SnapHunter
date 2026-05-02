@@ -1,32 +1,29 @@
 from __future__ import annotations
 
 from pathlib import Path
-import sys
 import geopandas as gpd
 import pandas as pd
 
 # Set input and output paths
-PARKS_PATH = Path("melbourne_city_parks_final.csv")
-STOPS_PATH = Path("public_transport_stops.geojson")
-OUTPUT_PATH = Path("park_transport_accessibility.csv")
+parks_path = Path("melbourne_city_parks_final.csv")
+stops_path = Path("public_transport_stops.geojson")
+output_path = Path("park_transport_accessibility.csv")
 
 # Set CRS for coordinate systems, using a metre-based CRS for distance calculations.
-SOURCE_CRS = "EPSG:4326"
-DISTANCE_CRS = "EPSG:7855"  # GDA2020 / MGA zone 55, metre-based for Melbourne.
+source_crs = "EPSG:4326"
+distance_crs = "EPSG:7855"  # GDA2020 / MGA zone 55, metre-based for Melbourne.
 
-PARK_ID_COL = "park_id"
-PARK_NAME_COL = "park_name"
-PARK_LAT_COL = "latitude"
-PARK_LON_COL = "longitude"
+park_id_col = "park_id"
+park_name_col = "park_name"
+park_lat_col = "latitude"
+park_lon_col = "longitude"
 
-STOP_ID_COL = "STOP_ID"
-STOP_NAME_COL = "STOP_NAME"
-STOP_MODE_COL = "MODE"
+stop_mode_col = "MODE"
 
 # Distance bands used by the transport score.
-STOP_SEARCH_BUFFER_M = 2_000.0
-NEAR_RADIUS_M = 300.0
-WALK_RADIUS_M = 500.0
+stop_search_buffer_m = 2_000.0
+near_radius_m = 300.0
+walk_radius_m = 500.0
 
 # Clean the transport mode values to a consistent set of categories
 def clean_transport_mode(mode: object) -> str:
@@ -48,37 +45,37 @@ def clean_transport_mode(mode: object) -> str:
 # Load the park and stop data
 def load_data() -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame]:
     """Load park points and public transport stops."""
-    parks_df = pd.read_csv(PARKS_PATH, encoding="utf-8-sig")
+    parks_df = pd.read_csv(parks_path, encoding="utf-8-sig")
     parks = gpd.GeoDataFrame(
         parks_df,
-        geometry=gpd.points_from_xy(parks_df[PARK_LON_COL], parks_df[PARK_LAT_COL]),
-        crs=SOURCE_CRS,
+        geometry=gpd.points_from_xy(parks_df[park_lon_col], parks_df[park_lat_col]),
+        crs=source_crs,
     )
 
     if parks.crs is None:
-        parks = parks.set_crs(SOURCE_CRS)
+        parks = parks.set_crs(source_crs)
     else:
-        parks = parks.to_crs(SOURCE_CRS)
+        parks = parks.to_crs(source_crs)
 
-    stops = gpd.read_file(STOPS_PATH)
+    stops = gpd.read_file(stops_path)
 
     if stops.crs is None:
-        stops = stops.set_crs(SOURCE_CRS)
+        stops = stops.set_crs(source_crs)
     else:
-        stops = stops.to_crs(SOURCE_CRS)
+        stops = stops.to_crs(source_crs)
 
     stops = stops[~stops.geometry.is_empty & stops.geometry.notna()].copy()
-    stops["transport_mode"] = stops[STOP_MODE_COL].apply(clean_transport_mode)
+    stops["transport_mode"] = stops[stop_mode_col].apply(clean_transport_mode)
 
     # Project to metres before measuring distance.
-    parks_projected = parks.to_crs(DISTANCE_CRS)
-    stops_projected = stops.to_crs(DISTANCE_CRS)
+    parks_projected = parks.to_crs(distance_crs)
+    stops_projected = stops.to_crs(distance_crs)
 
     # The stop file covers a larger area than the parks. A loose bounding box keeps the calculation quick while still leaving room for nearest stops.
     minx, miny, maxx, maxy = parks_projected.total_bounds
     relevant_stops = stops_projected.cx[
-        minx - STOP_SEARCH_BUFFER_M : maxx + STOP_SEARCH_BUFFER_M,
-        miny - STOP_SEARCH_BUFFER_M : maxy + STOP_SEARCH_BUFFER_M,
+        minx - stop_search_buffer_m : maxx + stop_search_buffer_m,
+        miny - stop_search_buffer_m : maxy + stop_search_buffer_m,
     ].copy()
 
     if relevant_stops.empty:
@@ -106,8 +103,8 @@ def calculate_accessibility_metrics(
         nearest_distance = float(distances.loc[nearest_idx])
 
         # 300m is treated as very close; 500m is a typical walking catchment.
-        stops_300 = stops.loc[distances <= NEAR_RADIUS_M]
-        stops_500 = stops.loc[distances <= WALK_RADIUS_M]
+        stops_300 = stops.loc[distances <= near_radius_m]
+        stops_500 = stops.loc[distances <= walk_radius_m]
         modes_500 = set(stops_500["transport_mode"].dropna())
 
         tram_count = int((stops_500["transport_mode"] == "tram").sum())
@@ -116,8 +113,8 @@ def calculate_accessibility_metrics(
 
         metric_rows.append(
             {
-                PARK_ID_COL: park[PARK_ID_COL],
-                PARK_NAME_COL: park[PARK_NAME_COL],
+                park_id_col: park[park_id_col],
+                park_name_col: park[park_name_col],
                 "nearest_stop_distance_m": round(nearest_distance, 1),
                 "nearest_stop_mode": nearest_stop["transport_mode"],
                 "stops_within_300m": int(len(stops_300)),
@@ -187,8 +184,8 @@ def export_results(metrics: pd.DataFrame) -> pd.DataFrame:
     metrics["low_accessibility_warning"] = metrics["transport_accessibility_score"] < 3
 
     output_cols = [
-        PARK_ID_COL,
-        PARK_NAME_COL,
+        park_id_col,
+        park_name_col,
         "nearest_stop_distance_m",
         "nearest_stop_mode",
         "stops_within_300m",
@@ -206,7 +203,7 @@ def export_results(metrics: pd.DataFrame) -> pd.DataFrame:
     ]
 
     results = metrics[output_cols].copy()
-    results.to_csv(OUTPUT_PATH, index=False, encoding="utf-8-sig")
+    results.to_csv(output_path, index=False, encoding="utf-8-sig")
     return results
 
 
@@ -214,7 +211,7 @@ def main() -> None:
     parks, stops = load_data()
     metrics = calculate_accessibility_metrics(parks, stops)
     results = export_results(metrics)
-    print(f"Exported {len(results)} park accessibility rows to {OUTPUT_PATH}")
+    print(f"Exported {len(results)} park accessibility rows to {output_path}")
 
 
 if __name__ == "__main__":
