@@ -5,13 +5,15 @@ import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.tp35.backend.dto.ParkDTO;
+import com.tp35.backend.dto.ParkRecommendationDTO;
 import com.tp35.backend.service.ParkService;
 
 @RestController
-@RequestMapping("/api/epic-parks")
+@RequestMapping("/api")
 public class ParkController {
 
     private final ParkService parkService;
@@ -20,8 +22,16 @@ public class ParkController {
         this.parkService = parkService;
     }
 
-    @GetMapping
+    @GetMapping("/epic-parks")
     public ResponseEntity<List<ParkDTO>> getAllParks() {
         return ResponseEntity.ok(parkService.getAllParks());
+    }
+
+    @GetMapping("/common-parks")
+    public ResponseEntity<List<ParkRecommendationDTO>> getParkRecommendations(
+        @RequestParam Double latitude,
+        @RequestParam Double longitude
+    ) {
+        return ResponseEntity.ok(parkService.getParksWithoutStoriesForRecommendation(latitude, longitude));
     }
 }
