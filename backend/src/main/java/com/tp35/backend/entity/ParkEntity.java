@@ -30,4 +30,19 @@ public class ParkEntity {
     private String description;
 
     private String parkName;
+
+    @Column
+    private Double minWeatherAcceptLevel;
+
+    @Column
+    private Double transportAccessibilityScore;
+
+    @Column
+    private Double taskRichnessScore;
+
+    @Column
+    private Double parkHaLevel;
+
+    @Column(columnDefinition = "TEXT")
+    private String recommendDescription;
 }
