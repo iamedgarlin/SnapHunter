@@ -28,7 +28,11 @@ public class ParkService {
         return parkRepository.findAllParks();
     }
 
-    public List<ParkRecommendationDTO> getParksWithoutStoriesForRecommendation(Double userLatitude, Double userLongitude) {
+    public List<ParkRecommendationDTO> getParksWithoutStoriesForRecommendation(
+        Double userLatitude, 
+        Double userLongitude,
+        boolean random
+        ) {
         Integer weatherLevel = calculateWeatherLevel(userLatitude, userLongitude);
         
         // --- For testing only ---
@@ -38,7 +42,12 @@ public class ParkService {
             return List.of();
         }
         
-        List<ParkRecommendationDTO> parks = parkRepository.findParksWithoutStoriesForRecommendation(userLatitude, userLongitude, weatherLevel);
+        List<ParkRecommendationDTO> parks = 
+                parkRepository.findParksWithoutStoriesForRecommendation(
+                    userLatitude, 
+                    userLongitude, 
+                    weatherLevel,
+                    random);
         for (ParkRecommendationDTO park : parks) {
             park.setTransportAccessibility(
                     convertTransportAccessibility(park.getTransportAccessibilityScore())

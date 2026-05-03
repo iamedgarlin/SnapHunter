@@ -44,7 +44,14 @@ public class ParkRepository {
 
     }
 
-    public List<ParkRecommendationDTO> findParksWithoutStoriesForRecommendation(Double userLatitude, Double userLongitude, Integer weatherLevel) {
+    public List<ParkRecommendationDTO> findParksWithoutStoriesForRecommendation(
+        Double userLatitude, 
+        Double userLongitude, 
+        Integer weatherLevel, 
+        boolean random
+        ) {
+        String orderBy = random ? " ORDER BY RAND() " : " ORDER BY distance ASC ";
+
         String sql = """
             WITH t AS (
                 SELECT
@@ -80,7 +87,7 @@ public class ParkRepository {
                 distance
             FROM t
             WHERE distance <= 5000
-            ORDER BY distance ASC
+            """ + orderBy + """
             LIMIT 5
             """;
 
