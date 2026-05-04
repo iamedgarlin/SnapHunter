@@ -3,10 +3,12 @@ import axios from 'axios'
 const API_BASE = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
 const ANALYTICS_KEY = 'snaphunter_analytics'
 const SESSION_KEY = 'snaphunter_session'
+const CONSENT_KEY = 'snaphunter_parental_consent'
 
-/**
- * Get current user uid from localStorage
- */
+function hasParentalConsent() {
+  return localStorage.getItem(CONSENT_KEY) === 'true'
+}
+
 function getUserId() {
   try {
     const user = JSON.parse(localStorage.getItem('snaphunter_user') || 'null')
@@ -16,9 +18,6 @@ function getUserId() {
   }
 }
 
-/**
- * Get stored analytics events
- */
 function getStoredEvents() {
   try {
     return JSON.parse(localStorage.getItem(ANALYTICS_KEY) || '[]')
@@ -27,21 +26,14 @@ function getStoredEvents() {
   }
 }
 
-/**
- * Save analytics events to localStorage
- */
 function saveEvents(events) {
-  // Keep max 500 events to avoid localStorage overflow
   const trimmed = events.slice(-500)
   localStorage.setItem(ANALYTICS_KEY, JSON.stringify(trimmed))
 }
 
-// ─── Session tracking ───────────────────────────────────────
-
-/**
- * Start a new app session (call on app mount / page visible)
- */
 export function startSession() {
+  if (!hasParentalConsent()) return
+
   const session = {
     startedAt: new Date().toISOString(),
     userId: getUserId(),
@@ -49,11 +41,9 @@ export function startSession() {
   localStorage.setItem(SESSION_KEY, JSON.stringify(session))
 }
 
-/**
- * End the current session and record duration
- * (call on page hide / beforeunload)
- */
 export function endSession() {
+  if (!hasParentalConsent()) return
+
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null')
     if (!session?.startedAt) return
@@ -61,7 +51,6 @@ export function endSession() {
     const durationMs = Date.now() - new Date(session.startedAt).getTime()
     const durationSec = Math.round(durationMs / 1000)
 
-    // Only record sessions longer than 3 seconds
     if (durationSec > 3) {
       trackEvent('session_end', {
         startedAt: session.startedAt,
@@ -76,14 +65,9 @@ export function endSession() {
   }
 }
 
-// ─── Event tracking ─────────────────────────────────────────
-
-/**
- * Track a single analytics event
- * @param {'task_start'|'task_complete'|'session_end'|'photo_taken'|'page_view'} eventType
- * @param {object} data - event-specific data
- */
 export function trackEvent(eventType, data = {}) {
+  if (!hasParentalConsent()) return
+
   const userId = getUserId()
   if (!userId) return
 
@@ -99,13 +83,9 @@ export function trackEvent(eventType, data = {}) {
   saveEvents(events)
 }
 
-// ─── Sync to backend ────────────────────────────────────────
-
-/**
- * Flush all stored events to backend API
- * Call this periodically or on key moments (task complete, session end)
- */
 export async function syncToBackend() {
+  if (!hasParentalConsent()) return
+
   const events = getStoredEvents()
   if (events.length === 0) return
 
@@ -118,19 +98,16 @@ export async function syncToBackend() {
       events,
     })
 
-    // Clear synced events on success
     localStorage.removeItem(ANALYTICS_KEY)
     console.log(`[Analytics] Synced ${events.length} events`)
   } catch (error) {
-    // Keep events in localStorage, will retry next time
     console.warn('[Analytics] Sync failed, will retry later', error.message)
   }
 }
 
-/**
- * Sync user profile to backend (call on first login)
- */
 export async function syncUserProfile() {
+  if (!hasParentalConsent()) return
+
   const userId = getUserId()
   if (!userId) return
 
