@@ -273,7 +273,7 @@ const eyeRestSeconds = ref(20)
 const eyeRestProgress = ref(0)
 let eyeRestTimer = null
 let gemini = null
-let hasGreeted = false  // ★ 确保只发一次开场消息
+let hasGreeted = false
 
 // ─── Computed ────────────────────────────────────────────────
 const currentTask = computed(() => storyData.value.tasks[currentTaskIndex.value])

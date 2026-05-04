@@ -110,22 +110,31 @@
 
         <div v-for="ep in epicParks" :key="'epic-' + ep.id"
           class="card-game flex items-center gap-3 cursor-pointer active:scale-95 transition-all"
-          style="border-color:#ddd6fe;border-bottom-color:#8b5cf6;background:linear-gradient(135deg,#faf5ff,#f5f3ff)"
+          :style="ep.unlocked
+            ? 'border-color:#ddd6fe;border-bottom-color:#8b5cf6;background:linear-gradient(135deg,#faf5ff,#f5f3ff)'
+            : 'border-color:#e2e8f0;border-bottom-color:#cbd5e1'"
           @click="focusPark(ep)">
           <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-            style="background:#ede9fe;border:2px solid #ddd6fe;border-bottom:3px solid #a78bfa">
-            <PhCastleTurret :size="24" weight="duotone" color="#7c3aed" />
+            :style="ep.unlocked
+              ? 'background:#ede9fe;border:2px solid #ddd6fe;border-bottom:3px solid #a78bfa'
+              : 'background:#f1f5f9;border:2px solid #e2e8f0;border-bottom:3px solid #cbd5e1'">
+            <PhCastleTurret :size="24" weight="duotone" :color="ep.unlocked ? '#7c3aed' : '#94a3b8'" />
           </div>
           <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
-              <p class="text-sm font-black text-violet-700 truncate">{{ ep.name }}</p>
-              <span class="text-xs font-black text-violet-500 bg-violet-100 rounded-lg px-1.5 py-0.5">EPIC</span>
-            </div>
+            <p class="text-sm font-black truncate" :style="ep.unlocked ? 'color:#5b21b6' : 'color:#64748b'">{{ ep.name }}</p>
             <div class="flex items-center gap-2 mt-0.5">
               <span class="text-xs font-semibold text-gray-400">{{ formatDistance(ep.distance) }}</span>
-              <span class="text-xs text-violet-400">{{ ep.epic.poiCount }} spots to explore</span>
+              <div class="flex items-center gap-0.5">
+                <PhLightning :size="11" weight="duotone" color="#f59e0b" />
+                <span class="text-xs font-black text-amber-500">+50</span>
+              </div>
+              <div v-if="ep.epic?.totalBonus" class="flex items-center gap-0.5">
+                <PhTrophy :size="11" weight="duotone" color="#7c3aed" />
+                <span class="text-xs font-black text-violet-500">+{{ ep.epic.totalBonus }}</span>
+              </div>
             </div>
           </div>
+          <!-- CHANGED: purple nav button for epic parks instead of gray -->
           <button class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" :style="navigatingId === `park-${ep.id}`
             ? (routeInfo?.arrived ? 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #34d399'
               : 'background:#fef2f2;border:2px solid #fecaca;border-bottom:3px solid #f87171')
@@ -138,48 +147,105 @@
           </button>
         </div>
 
-        <!-- ═══ Nearby Parks ═══ -->
-        <div class="flex items-center justify-between" :class="epicParks.length ? 'mt-2' : ''">
-          <div class="flex items-center gap-1.5">
-            <PhTree :size="16" weight="duotone" color="#10b981" />
-            <p class="text-sm font-black text-gray-700">Nearby Parks</p>
+        <!-- ═══ Recommended Parks ═══ -->
+        <div :class="epicParks.length ? 'mt-2' : ''">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <PhTree :size="16" weight="duotone" color="#10b981" />
+              <p class="text-sm font-black text-gray-700">Recommended Parks</p>
+            </div>
+            <button
+              class="text-xs font-black px-2 py-1 rounded-xl flex items-center gap-1 active:scale-95 transition-all"
+              :style="commonParksLoading
+                ? 'background:#f1f5f9;color:#94a3b8;pointer-events:none'
+                : 'background:#ecfdf5;color:#059669;border:1px solid #a7f3d0'"
+              :disabled="commonParksLoading"
+              @click="refreshCommonParks">
+              <PhArrowsClockwise :size="12" weight="bold" :class="commonParksLoading ? 'animate-spin' : ''" />
+              {{ commonParksLoading ? 'Loading...' : 'Refresh' }}
+            </button>
           </div>
-          <span class="text-xs font-black text-emerald-600 bg-emerald-100 rounded-xl px-2 py-1">
-            {{ unlockedCount }} / {{ parks.length }} unlocked
-          </span>
+          <!-- Mode toggle -->
+          <div class="recommend-mode-toggle mt-2">
+            <button
+              class="recommend-mode-btn"
+              :class="recommendMode === 'nearest' ? 'recommend-mode-active' : ''"
+              @click="switchRecommendMode('nearest')">
+              <PhMapTrifold :size="13" weight="duotone" />
+              Nearest
+            </button>
+            <button
+              class="recommend-mode-btn"
+              :class="recommendMode === 'surprise' ? 'recommend-mode-active' : ''"
+              @click="switchRecommendMode('surprise')">
+              <PhShuffle :size="13" weight="duotone" />
+              Surprise Me
+            </button>
+          </div>
         </div>
 
-        <div v-for="park in sortedNearbyParks" :key="park.id"
-          class="card-game flex items-center gap-3 cursor-pointer active:scale-95 transition-all"
-          :style="park.unlocked ? 'border-color:#bbf7d0;border-bottom-color:#34d399' : ''" @click="focusPark(park)">
-          <div class="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0" :style="park.unlocked
-            ? 'background:#dcfce7;border:2px solid #bbf7d0;border-bottom:3px solid #86efac'
-            : 'background:#f1f5f9;border:2px solid #e2e8f0;border-bottom:3px solid #cbd5e1'">
-            <PhTree :size="24" weight="duotone" :color="park.unlocked ? '#16a34a' : '#cbd5e1'" />
-          </div>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-1.5">
-              <p class="text-sm font-black truncate" :style="park.unlocked ? 'color:#16a34a' : 'color:#1f2937'">{{
-                park.name }}
-              </p>
-              <PhSealCheck v-if="park.unlocked" :size="14" weight="duotone" color="#16a34a" />
+        <!-- Loading state -->
+        <div v-if="commonParksLoading && !commonParks.length" class="flex flex-col items-center gap-2 py-6">
+          <PhSpinnerGap :size="24" weight="bold" color="#10b981" class="animate-spin" />
+          <p class="text-xs font-semibold text-gray-400">Finding parks near you...</p>
+        </div>
+
+        <!-- No parks (weather veto) -->
+        <div v-else-if="!commonParksLoading && !commonParks.length && commonParksFetched" class="card-game flex flex-col items-center gap-2 py-4">
+          <PhCloudRain :size="28" weight="duotone" color="#94a3b8" />
+          <p class="text-xs font-black text-gray-500 text-center">Weather is not ideal for outdoor activities right now</p>
+          <p class="text-xs text-gray-400 text-center">Check back when conditions improve!</p>
+        </div>
+
+        <!-- Park recommendation cards -->
+        <div v-for="cp in commonParks" :key="'common-' + cp.parkId"
+          class="common-park-card cursor-pointer active:scale-[0.98] transition-all"
+          @click="focusCommonPark(cp)">
+          <!-- Top row: name + nav button -->
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style="background:#ecfdf5;border:2px solid #a7f3d0;border-bottom:3px solid #6ee7b7">
+              <PhTree :size="20" weight="duotone" color="#059669" />
             </div>
-            <div class="flex items-center gap-2 mt-0.5">
-              <span class="text-xs font-semibold text-gray-400">{{ formatDistance(park.distance) }}</span>
-              <span v-if="park.distance !== null && park.distance <= 0.2" class="text-xs font-black px-1.5 py-0.5 rounded-lg"
-                style="background:#fef3c7;color:#d97706">In range!</span>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-black text-gray-800 truncate">{{ cp.parkName }}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs font-semibold text-gray-400">{{ formatDistanceM(cp.distance) }}</span>
+                <div class="flex items-center gap-0.5">
+                  <PhLightning :size="11" weight="duotone" color="#f59e0b" />
+                  <span class="text-xs font-black text-amber-500">+50</span>
+                </div>
+              </div>
             </div>
+            <button class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              :style="navigatingId === `common-${cp.parkId}`
+                ? (routeInfo?.arrived ? 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #34d399'
+                  : 'background:#fef2f2;border:2px solid #fecaca;border-bottom:3px solid #f87171')
+                : 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #86efac'"
+              @click.stop="toggleNavigation({ lat: cp.latitude, lng: cp.longitude, name: cp.parkName, id: `common-${cp.parkId}` })">
+              <PhCheck v-if="navigatingId === `common-${cp.parkId}` && routeInfo?.arrived" :size="16" weight="bold"
+                color="#16a34a" />
+              <PhX v-else-if="navigatingId === `common-${cp.parkId}`" :size="16" weight="bold" color="#ef4444" />
+              <PhNavigationArrow v-else :size="16" weight="duotone" color="#10b981" />
+            </button>
           </div>
-          <button class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" :style="navigatingId === `park-${park.id}`
-            ? (routeInfo?.arrived ? 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #34d399'
-              : 'background:#fef2f2;border:2px solid #fecaca;border-bottom:3px solid #f87171')
-            : 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #86efac'"
-            @click.stop="toggleNavigation({ lat: park.lat, lng: park.lng, name: park.name, id: `park-${park.id}` })">
-            <PhCheck v-if="navigatingId === `park-${park.id}` && routeInfo?.arrived" :size="16" weight="bold"
-              color="#16a34a" />
-            <PhX v-else-if="navigatingId === `park-${park.id}`" :size="16" weight="bold" color="#ef4444" />
-            <PhNavigationArrow v-else :size="16" weight="duotone" color="#10b981" />
-          </button>
+          <!-- Tags row -->
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            <span class="common-park-tag" :style="sizeTagStyle(cp.parkHa)">
+              <PhMapPin :size="10" weight="bold" />
+              {{ cp.parkHa }}
+            </span>
+            <span class="common-park-tag" :style="accessTagStyle(cp.transportAccessibility)">
+              <PhBus :size="10" weight="bold" />
+              {{ cp.transportAccessibility }}
+            </span>
+            <span class="common-park-tag" :style="richnessTagStyle(cp.taskRichness)">
+              <PhFlower :size="10" weight="bold" />
+              {{ cp.taskRichness }}
+            </span>
+          </div>
+          <!-- Description -->
+          <p class="text-xs text-gray-500 mt-2 leading-relaxed">{{ cp.recommendDescription }}</p>
         </div>
       </div>
     </div>
@@ -188,6 +254,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import axios from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -197,7 +264,10 @@ import {
   PhNavigationArrow, PhTree, PhSealCheck, PhX, PhPath, PhCheck,
   PhCaretDown, PhArrowUp, PhArrowBendDownRight, PhArrowBendDownLeft,
   PhArrowUUpRight, PhArrowUUpLeft, PhCastleTurret, PhCompass,
-  PhSpeakerHigh, PhSpeakerSlash
+  PhSpeakerHigh, PhSpeakerSlash, PhLightning, PhTrophy,
+  PhArrowsClockwise, PhSpinnerGap, PhCloudRain, PhMapPin, PhBus,
+  PhFlower, PhSun, PhCloud, PhCloudSun, PhSnowflake, PhCloudFog, PhThermometerSimple,
+  PhMapTrifold, PhShuffle
 } from '@phosphor-icons/vue'
 
 const PARKS_UNLOCK_KEY = 'snaphunter_parks_unlocked'
@@ -206,35 +276,269 @@ const UNLOCK_RADIUS_KM = 0.2
 const ARRIVAL_RADIUS_KM = 0.05
 const EPIC_TRIGGER_RADIUS_KM = 0.4
 
-/* ─── Epic Park Data ─── */
-const EPIC_PARKS_DATA = {
-  2: {
-    description: 'Discover history, nature, and hidden treasures in one of Melbourne\'s oldest parks.',
-    poiCount: 6,
-    pois: [
-      { id: 'cooks-cottage', name: "Captain Cook's Cottage", lat: -37.8148, lng: 144.9802, type: 'history', brief: 'Shipped brick-by-brick from England in 1934' },
-      { id: 'fairies-tree', name: "Fairies' Tree", lat: -37.8130, lng: 144.9810, type: 'culture', brief: 'A 300-year-old tree carved with fairies and elves' },
-      { id: 'conservatory', name: 'Conservatory', lat: -37.8142, lng: 144.9778, type: 'nature', brief: 'A beautiful flower house built in 1930' },
-      { id: 'tudor-village', name: 'Model Tudor Village', lat: -37.8125, lng: 144.9785, type: 'history', brief: 'Tiny English village gifted after World War II' },
-      { id: 'elm-avenue', name: 'Avenue of Elms', lat: -37.8135, lng: 144.9770, type: 'nature', brief: 'Walk under 100-year-old elm trees' },
-      { id: 'river-gums', name: 'River Red Gums', lat: -37.8150, lng: 144.9815, type: 'nature', brief: 'Ancient Australian trees sacred to Indigenous people' },
-    ],
-  },
+/* ─── API ─── */
+const API_BASE = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
+
+// Epic parks data fetched from API
+const epicParksMap = ref({})  // { parkId: { name, description, lat, lng, totalBonus } }
+
+async function fetchEpicParks() {
+  try {
+    const res = await axios.get(`${API_BASE}/api/epic-parks`)
+    const data = res.data
+    const map = {}
+
+    for (const ep of data) {
+      let totalBonus = 0
+
+      try {
+        const storiesRes = await axios.get(
+          `${API_BASE}/api/epic-parks/stories`,
+          { params: { parkId: ep.parkId } }
+        )
+
+        for (const story of storiesRes.data) {
+          let idx = 1
+
+          while (true) {
+            const qRes = await axios.get(
+              `${API_BASE}/api/epic-parks/stories/question`,
+              {
+                params: {
+                  storyId: story.storyId,
+                  orderIndex: idx,
+                },
+                validateStatus: () => true,
+              }
+            )
+
+            if (qRes.status === 404) {
+              break
+            }
+
+            if (qRes.status !== 200) {
+              console.warn('Unexpected status:', qRes.status)
+              break
+            }
+
+            const question = qRes.data
+
+            if (!question || !question.questionId) {
+              break
+            }
+
+            totalBonus += question.reward || 0
+            idx++
+          }
+        }
+      } catch (err) {
+        console.error('Fetch story error:', err)
+      }
+
+      map[ep.parkId] = {
+        name: ep.parkName,
+        description: ep.description,
+        lat: ep.latitude,
+        lng: ep.longitude,
+        totalBonus,
+      }
+
+      const exists = parks.value.find(p => p.id === ep.parkId)
+
+      if (exists) {
+        exists.name = ep.parkName
+        exists.lat = ep.latitude
+        exists.lng = ep.longitude
+      } else {
+        parks.value.push({
+          id: ep.parkId,
+          name: ep.parkName,
+          lat: ep.latitude,
+          lng: ep.longitude,
+          unlocked: false,
+          distance: null,
+        })
+      }
+    }
+
+    epicParksMap.value = map
+  } catch (e) {
+    console.error('Failed to fetch epic parks:', e)
+  }
+}
+
+/* ─── Common Parks (API-driven recommendations) ─── */
+const commonParks = ref([])
+const commonParksLoading = ref(false)
+const commonParksFetched = ref(false)
+const commonParkMarkers = {}
+const recommendMode = ref('nearest') // 'nearest' or 'surprise'
+
+function switchRecommendMode(mode) {
+  if (mode === recommendMode.value && commonParksFetched.value) return
+  recommendMode.value = mode
+  fetchCommonParks(mode === 'surprise')
+}
+
+function refreshCommonParks() {
+  fetchCommonParks(recommendMode.value === 'surprise')
+}
+
+async function fetchCommonParks(random = false) {
+  if (!userPos.value) return
+  commonParksLoading.value = true
+  try {
+    const res = await axios.get(`${API_BASE}/api/common-parks`, {
+      params: {
+        latitude: userPos.value.lat,
+        longitude: userPos.value.lng,
+        random,
+      }
+    })
+    commonParks.value = res.data || []
+    commonParksFetched.value = true
+
+    // Clear old common park markers
+    Object.values(commonParkMarkers).forEach(m => m.remove())
+    Object.keys(commonParkMarkers).forEach(k => delete commonParkMarkers[k])
+
+    // Add markers for common parks on the map
+    if (map) {
+      for (const cp of commonParks.value) {
+        const m = L.marker([cp.latitude, cp.longitude], {
+          icon: makePinIcon(false, false),
+        }).addTo(map)
+          .bindPopup(commonParkPopupHtml(cp), { closeButton: false, offset: [0, -8] })
+        commonParkMarkers[cp.parkId] = m
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch common parks:', e)
+    commonParks.value = []
+    commonParksFetched.value = true
+  } finally {
+    commonParksLoading.value = false
+  }
+}
+
+function commonParkPopupHtml(cp) {
+  return `<div style="font-family:sans-serif;text-align:center;padding:4px 2px">
+    <p style="font-weight:900;font-size:13px;margin:0 0 2px">${cp.parkName}</p>
+    <p style="font-size:10px;color:#059669;margin:0">${cp.parkHa} · ${cp.transportAccessibility}</p></div>`
+}
+
+function focusCommonPark(cp) {
+  if (map) {
+    map.setView([cp.latitude, cp.longitude], 16)
+    commonParkMarkers[cp.parkId]?.openPopup()
+  }
+}
+
+/* ─── Tag styling helpers ─── */
+function sizeTagStyle(parkHa) {
+  if (!parkHa) return 'background:#f1f5f9;color:#64748b'
+  if (parkHa.toLowerCase().includes('large')) return 'background:#dbeafe;color:#1d4ed8'
+  if (parkHa.toLowerCase().includes('medium')) return 'background:#e0e7ff;color:#4338ca'
+  return 'background:#f1f5f9;color:#64748b'
+}
+
+function accessTagStyle(access) {
+  if (!access) return 'background:#f1f5f9;color:#64748b'
+  if (access.toLowerCase().includes('high')) return 'background:#dcfce7;color:#15803d'
+  if (access.toLowerCase().includes('medium')) return 'background:#fef9c3;color:#a16207'
+  return 'background:#fef2f2;color:#b91c1c'
+}
+
+function richnessTagStyle(richness) {
+  if (!richness) return 'background:#f1f5f9;color:#64748b'
+  if (richness.toLowerCase().includes('high')) return 'background:#fce7f3;color:#be185d'
+  if (richness.toLowerCase().includes('medium')) return 'background:#fff7ed;color:#c2410c'
+  return 'background:#f5f5f4;color:#78716c'
+}
+
+/* ─── Weather ─── */
+const weather = ref(null)
+
+async function fetchWeather(lat, lng) {
+  try {
+    const res = await axios.get('https://api.open-meteo.com/v1/forecast', {
+      params: {
+        latitude: lat,
+        longitude: lng,
+        current: 'temperature_2m,weather_code,uv_index',
+        timezone: 'auto',
+      }
+    })
+    const c = res.data?.current
+    if (c) {
+      weather.value = {
+        temp: Math.round(c.temperature_2m),
+        weatherCode: c.weather_code,
+        uv: c.uv_index != null ? Math.round(c.uv_index) : null,
+      }
+      updateWeatherHud()
+    }
+  } catch (e) {
+    console.error('Weather fetch error:', e)
+  }
+}
+
+function weatherLabel(code) {
+  if (code == null) return 'Unknown'
+  if (code === 0) return 'Clear'
+  if (code <= 3) return 'Cloudy'
+  if (code <= 48) return 'Foggy'
+  if (code <= 67) return 'Rainy'
+  if (code <= 77) return 'Snowy'
+  if (code <= 82) return 'Showers'
+  if (code <= 86) return 'Snow Showers'
+  return 'Stormy'
+}
+
+function weatherEmoji(code) {
+  if (code == null) return '🌤'
+  if (code === 0) return '☀️'
+  if (code <= 2) return '⛅'
+  if (code === 3) return '☁️'
+  if (code <= 48) return '🌫️'
+  if (code <= 67) return '🌧️'
+  if (code <= 77) return '❄️'
+  if (code <= 82) return '🌦️'
+  if (code <= 86) return '🌨️'
+  return '⛈️'
+}
+
+function uvColor(uv) {
+  if (uv == null) return '#94a3b8'
+  if (uv <= 2) return '#22c55e'
+  if (uv <= 5) return '#f59e0b'
+  if (uv <= 7) return '#f97316'
+  if (uv <= 10) return '#ef4444'
+  return '#7c3aed'
+}
+
+function uvLabel(uv) {
+  if (uv == null) return ''
+  if (uv <= 2) return 'Low'
+  if (uv <= 5) return 'Moderate'
+  if (uv <= 7) return 'High'
+  if (uv <= 10) return 'Very High'
+  return 'Extreme'
+}
+
+let weatherHudEl = null
+function updateWeatherHud() {
+  if (!weatherHudEl || !weather.value) return
+  const w = weather.value
+  weatherHudEl.innerHTML = `
+    <span style="font-size:14px;line-height:1">${weatherEmoji(w.weatherCode)}</span>
+    <span>${w.temp}°C</span>
+    <span style="color:${uvColor(w.uv)};font-size:10px">UV ${w.uv != null ? w.uv : '–'}</span>
+  `
 }
 
 /* ─── State ─── */
-const parks = ref([
-  { id: 1, name: 'Flagstaff Gardens', lat: -37.8090, lng: 144.9520, unlocked: false, distance: null },
-  { id: 2, name: 'Fitzroy Gardens', lat: -37.8136, lng: 144.9793, unlocked: false, distance: null },
-  { id: 3, name: 'Royal Botanic Gardens', lat: -37.8304, lng: 144.9799, unlocked: false, distance: null },
-  { id: 4, name: 'Carlton Gardens', lat: -37.8033, lng: 144.9716, unlocked: false, distance: null },
-  { id: 5, name: 'Yarra Park', lat: -37.8224, lng: 144.9836, unlocked: false, distance: null },
-  { id: 6, name: 'Albert Park', lat: -37.8468, lng: 144.9658, unlocked: false, distance: null },
-  { id: 7, name: 'Princes Park', lat: -37.7833, lng: 144.9608, unlocked: false, distance: null },
-  { id: 8, name: 'Edinburgh Gardens', lat: -37.7890, lng: 144.9790, unlocked: false, distance: null },
-  { id: 9, name: 'Moonee Valley Parklands', lat: -37.7607, lng: 144.9286, unlocked: false, distance: null },
-  { id: 10, name: 'Jells Park', lat: -37.8980, lng: 145.2020, unlocked: false, distance: null },
-])
+const parks = ref([])
 
 const userPos = ref(null)
 const navigatingId = ref(null)
@@ -254,6 +558,7 @@ let taskMarker = null
 const parkMarkers = {}
 let unlockTimer = null
 let navTarget = null
+let weatherFetched = false
 
 const route = useRoute()
 const router = useRouter()
@@ -282,6 +587,10 @@ function formatDistance(km) {
   if (km == null) return '—'
   return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`
 }
+function formatDistanceM(meters) {
+  if (meters == null) return '—'
+  return meters < 1000 ? `${Math.round(meters)}m` : `${(meters / 1000).toFixed(1)}km`
+}
 
 /* ─── Voice ─── */
 function speak(text) {
@@ -303,27 +612,16 @@ function stepIcon(mod) {
 
 /* ─── Computed ─── */
 const epicParks = computed(() =>
-  parks.value.filter(p => EPIC_PARKS_DATA[p.id])
-    .map(p => ({ ...p, epic: EPIC_PARKS_DATA[p.id] }))
+  parks.value.filter(p => epicParksMap.value[p.id])
+    .map(p => ({ ...p, epic: epicParksMap.value[p.id] }))
     .sort((a, b) => (a.distance ?? 999) - (b.distance ?? 999))
 )
-const sortedNearbyParks = computed(() => {
-  const sorted = [...parks.value.filter(p => !EPIC_PARKS_DATA[p.id])].sort((a, b) => {
-    if (a.distance == null) return 1; if (b.distance == null) return -1; return a.distance - b.distance
-  })
-  if (navigatingId.value) {
-    const idx = sorted.findIndex(p => `park-${p.id}` === navigatingId.value)
-    if (idx > 0) { const [pin] = sorted.splice(idx, 1); sorted.unshift(pin) }
-  }
-  return sorted
-})
-const unlockedCount = computed(() => parks.value.filter(p => p.unlocked && !EPIC_PARKS_DATA[p.id]).length)
-const epicUnlockedCount = computed(() => parks.value.filter(p => p.unlocked && EPIC_PARKS_DATA[p.id]).length)
+const epicUnlockedCount = computed(() => parks.value.filter(p => p.unlocked && epicParksMap.value[p.id]).length)
 
 /* ─── Map pin icons ─── */
 function makePinIcon(unlocked, isEpic) {
-  const fill = isEpic ? '#8b5cf6' : unlocked ? '#16a34a' : '#cbd5e1'
-  const stroke = isEpic ? '#5b21b6' : unlocked ? '#064e3b' : '#94a3b8'
+  const fill = unlocked ? (isEpic ? '#8b5cf6' : '#16a34a') : '#cbd5e1'
+  const stroke = unlocked ? (isEpic ? '#5b21b6' : '#064e3b') : '#94a3b8'
   const s = isEpic ? 26 : 22
   return L.divIcon({
     className: '',
@@ -331,7 +629,7 @@ function makePinIcon(unlocked, isEpic) {
       <svg viewBox="0 0 32 40" width="${s}" height="${Math.round(s * 1.25)}">
         <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
         <circle cx="16" cy="12" r="5" fill="white" opacity="0.9"/>
-        ${isEpic ? `<text x="16" y="15" text-anchor="middle" font-size="8" font-weight="bold" fill="${stroke}">★</text>` : ''}
+        ${isEpic && unlocked ? `<text x="16" y="15" text-anchor="middle" font-size="8" font-weight="bold" fill="${stroke}">★</text>` : ''}
       </svg></div>`,
     iconSize: [s, Math.round(s * 1.25)], iconAnchor: [s / 2, Math.round(s * 1.25)], popupAnchor: [0, -Math.round(s * 1.25)],
   })
@@ -347,6 +645,7 @@ function makeTaskPinIcon() {
 
 /* ─── HUD ─── */
 function createHudControls() {
+  // Victoria badge (top left)
   const Badge = L.Control.extend({
     options: { position: 'topleft' }, onAdd() {
       const el = L.DomUtil.create('div', 'leaflet-hud-badge')
@@ -354,6 +653,19 @@ function createHudControls() {
       L.DomEvent.disableClickPropagation(el); return el
     }
   })
+
+  // Weather badge (top right)
+  const Weather = L.Control.extend({
+    options: { position: 'topright' }, onAdd() {
+      const el = L.DomUtil.create('div', 'leaflet-hud-weather')
+      el.innerHTML = `<span style="font-size:14px;line-height:1">🌤</span><span>--°C</span><span style="color:#94a3b8;font-size:10px">UV –</span>`
+      weatherHudEl = el
+      L.DomEvent.disableClickPropagation(el)
+      return el
+    }
+  })
+
+  // Center button (bottom right)
   const Center = L.Control.extend({
     options: { position: 'bottomright' }, onAdd() {
       const el = L.DomUtil.create('div', 'leaflet-hud-btn')
@@ -362,7 +674,10 @@ function createHudControls() {
       L.DomEvent.on(el, 'click', () => centerOnUser()); return el
     }
   })
-  new Badge().addTo(map); new Center().addTo(map)
+
+  new Badge().addTo(map)
+  new Weather().addTo(map)
+  new Center().addTo(map)
 }
 
 function showUnlockAnim(park) {
@@ -381,7 +696,7 @@ function initMap() {
 }
 
 function parkPopupHtml(park) {
-  const isEpic = !!EPIC_PARKS_DATA[park.id]
+  const isEpic = !!epicParksMap.value[park.id]
   const badge = isEpic ? `<span style="display:inline-block;background:#ede9fe;color:#7c3aed;font-size:9px;font-weight:900;padding:1px 5px;border-radius:6px;margin-left:4px">EPIC</span>` : ''
   return `<div style="font-family:sans-serif;text-align:center;padding:4px 2px">
     <p style="font-weight:900;font-size:13px;margin:0 0 2px">${park.name}${badge}</p>
@@ -397,14 +712,14 @@ function taskPopupHtml(name, subtitle) {
 }
 
 function addParkMarker(park) {
-  const isEpic = !!EPIC_PARKS_DATA[park.id]
+  const isEpic = !!epicParksMap.value[park.id]
   const m = L.marker([park.lat, park.lng], { icon: makePinIcon(park.unlocked, isEpic) }).addTo(map)
     .bindPopup(parkPopupHtml(park), { closeButton: false, offset: [0, -8] })
   parkMarkers[park.id] = m
 }
 function refreshMarker(park) {
   const m = parkMarkers[park.id]; if (!m) return
-  m.setIcon(makePinIcon(park.unlocked, !!EPIC_PARKS_DATA[park.id]))
+  m.setIcon(makePinIcon(park.unlocked, !!epicParksMap.value[park.id]))
   m.setPopupContent(parkPopupHtml(park))
 }
 
@@ -423,6 +738,13 @@ function startTracking() {
         }), zIndexOffset: 1000
       }).addTo(map)
       if (!navigatingId.value) map.setView([lat, lng], 14)
+
+      // Fetch weather + common parks on first GPS fix
+      if (!weatherFetched) {
+        weatherFetched = true
+        fetchWeather(lat, lng)
+        fetchCommonParks(false)
+      }
     } else { userMarker.setLatLng([lat, lng]) }
     checkUnlocks(lat, lng); checkArrival(lat, lng); checkEpicParkProximity(lat, lng)
   }, err => console.warn('Geo error:', err), { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 })
@@ -436,7 +758,7 @@ function checkUnlocks(lat, lng) {
       refreshMarker(park)
       showUnlockAnim(park)
       saveUnlockedParks()
-      progressStore.visitPark()
+      progressStore.visitPark(park.id)
       progressStore.addXp(50)
       trackEvent('park_unlocked', { parkId: park.id, parkName: park.name })
     }
@@ -445,7 +767,7 @@ function checkUnlocks(lat, lng) {
 
 function checkEpicParkProximity(lat, lng) {
   for (const park of parks.value) {
-    const ed = EPIC_PARKS_DATA[park.id]; if (!ed) continue
+    const ed = epicParksMap.value[park.id]; if (!ed) continue
     if (epicTriggered.value.has(park.id)) continue
     if (haversine(lat, lng, park.lat, park.lng) <= EPIC_TRIGGER_RADIUS_KM) {
       epicTriggered.value.add(park.id)
@@ -562,9 +884,10 @@ function handleRouteQuery() {
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   progressStore.init()
   loadUnlockedParks()
+  await fetchEpicParks()
   initMap()
   startTracking()
   handleRouteQuery()
@@ -596,6 +919,23 @@ onUnmounted(() => {
   font-size: 12px !important;
   font-weight: 900 !important;
   color: #047857 !important;
+  line-height: 1 !important
+}
+
+.leaflet-hud-weather {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 6px 12px !important;
+  border-radius: 16px !important;
+  background: white !important;
+  border: 2px solid #e2e8f0 !important;
+  border-bottom: 2px solid #cbd5e1 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12) !important;
+  font-family: var(--font-game), system-ui, sans-serif !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  color: #1f2937 !important;
   line-height: 1 !important
 }
 
@@ -792,6 +1132,69 @@ onUnmounted(() => {
   background: #eff6ff;
   flex-shrink: 0;
   margin-top: 1px
+}
+
+/* ─── Common park card ─── */
+.common-park-card {
+  border-radius: 16px;
+  background: white;
+  border: 2px solid #d1fae5;
+  border-bottom: 3px solid #6ee7b7;
+  padding: 12px 14px;
+  font-family: var(--font-game), system-ui, sans-serif;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.06)
+}
+
+.common-park-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+/* ─── Recommend mode toggle ─── */
+.recommend-mode-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: 12px;
+  background: #f1f5f9;
+  padding: 3px;
+  border: 2px solid #e2e8f0
+}
+
+.recommend-mode-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-family: var(--font-game), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none
+}
+
+.recommend-mode-btn:active {
+  transform: scale(0.96)
+}
+
+.recommend-mode-active {
+  background: white;
+  color: #059669;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-bottom: 2px solid #34d399
 }
 </style>
 

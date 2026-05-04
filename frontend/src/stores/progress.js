@@ -113,7 +113,7 @@ function getDefaultProgress() {
     xp: 0,
     totalTasksCompleted: 0,
     totalPhotos: 0,
-    parksVisited: 0,
+    parksVisited: [],        // array of unique park ids (deduplicated)
     earnedBadges: [],       // array of badge ids
     activeTitle: null,       // title id or null
     // Streak
@@ -196,6 +196,12 @@ export const useProgressStore = defineStore('progress', () => {
     return Math.max(0, 3 - progress.value.refreshesUsedToday)
   })
 
+  const parksVisitedCount = computed(() => {
+    // Handle legacy number format
+    if (typeof progress.value.parksVisited === 'number') return progress.value.parksVisited
+    return Array.isArray(progress.value.parksVisited) ? progress.value.parksVisited.length : 0
+  })
+
   // ─── Week streak display ────────────────────────────────
   const weekStreakDisplay = computed(() => {
     const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -227,6 +233,10 @@ export const useProgressStore = defineStore('progress', () => {
       } catch {
         // corrupted data, start fresh
       }
+    }
+    // Migrate legacy parksVisited from number to array
+    if (typeof progress.value.parksVisited === 'number') {
+      progress.value.parksVisited = []
     }
     // Check if day changed and reset refresh counter
     if (progress.value.lastRefreshDate !== getTodayKey()) {
@@ -272,9 +282,21 @@ export const useProgressStore = defineStore('progress', () => {
     save()
   }
 
-  function visitPark() {
-    progress.value.parksVisited += 1
-    if (progress.value.parksVisited >= 1) earnBadge('park_pioneer')
+  /**
+   * Record a park visit. Deduplicates by parkId so the same park
+   * only counts once no matter how many times the user visits.
+   * @param {number|string} parkId - unique park identifier
+   */
+  function visitPark(parkId) {
+    if (!parkId) return
+    const id = String(parkId)
+    // Migrate legacy number format to array
+    if (!Array.isArray(progress.value.parksVisited)) {
+      progress.value.parksVisited = []
+    }
+    if (progress.value.parksVisited.includes(id)) return // already counted
+    progress.value.parksVisited.push(id)
+    if (progress.value.parksVisited.length >= 1) earnBadge('park_pioneer')
     save()
   }
 
@@ -371,7 +393,7 @@ export const useProgressStore = defineStore('progress', () => {
     level, xpPercent, xpInCurrentLevel, xpNeededForLevel,
     currentLevelXp, nextLevelXp, levelTitle,
     earnedBadgeSet, unlockedTitles, activeTitle,
-    refreshesLeftToday, weekStreakDisplay,
+    refreshesLeftToday, weekStreakDisplay, parksVisitedCount,
     // Actions
     init, save, addXp, completeTask, addPhoto, visitPark,
     completeSunnyTask, completeEpicPark, earnBadge, setActiveTitle,

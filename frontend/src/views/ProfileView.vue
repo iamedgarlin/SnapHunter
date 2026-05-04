@@ -67,7 +67,7 @@
         </div>
         <div class="flex flex-col items-center gap-1 p-3 rounded-2xl"
           style="background: white; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399">
-          <p class="text-xl font-black text-emerald-600">{{ progressStore.progress.parksVisited }}</p>
+          <p class="text-xl font-black text-emerald-600">{{ progressStore.parksVisitedCount }}</p>
           <p class="text-xs font-bold text-gray-400 text-center leading-tight">Parks</p>
         </div>
         <div class="flex flex-col items-center gap-1 p-3 rounded-2xl"
