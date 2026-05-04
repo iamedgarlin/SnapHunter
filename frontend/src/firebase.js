@@ -9,12 +9,13 @@ import {
 } from 'firebase/auth'
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDv4i4n4xteDQVPlMT1RWfamRPPsAzp7ZU",
-  authDomain: "snaphunter-365c8.firebaseapp.com",
-  projectId: "snaphunter-365c8",
-  storageBucket: "snaphunter-365c8.firebasestorage.app",
-  messagingSenderId: "510694824286",
-  appId: "1:510694824286:web:4b68bd5d5b83723c1fd7cf"
+  apiKey: "AIzaSyDA3Wm3-2ehtiEhcsULgax4PSCKRVa7nkE",
+  authDomain: "snaphunter-5a8ad.firebaseapp.com",
+  projectId: "snaphunter-5a8ad",
+  storageBucket: "snaphunter-5a8ad.firebasestorage.app",
+  messagingSenderId: "182070306939",
+  appId: "1:182070306939:web:af5de62db3f0b55b5e9ade",
+  measurementId: "G-H07B7ET7PQ"
 }
 
 const app = initializeApp(firebaseConfig)
