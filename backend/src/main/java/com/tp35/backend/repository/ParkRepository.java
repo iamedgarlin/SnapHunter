@@ -86,7 +86,6 @@ public class ParkRepository {
                 recommend_description,
                 distance
             FROM t
-            WHERE distance <= 5000
             """ + orderBy + """
             LIMIT 5
             """;
