@@ -886,8 +886,8 @@ function handleRouteQuery() {
 
 onMounted(async () => {
   progressStore.init()
-  loadUnlockedParks()
   await fetchEpicParks()
+  loadUnlockedParks()
   initMap()
   startTracking()
   handleRouteQuery()

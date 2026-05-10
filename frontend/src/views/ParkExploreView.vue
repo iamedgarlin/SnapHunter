@@ -194,6 +194,14 @@ const progressStore = useProgressStore()
 const EXPLORE_KEY = 'snaphunter_epic_progress'
 const userName = computed(() => authStore.user?.nickname || 'Explorer')
 
+// ─── Park ID → Badge ID mapping ────────────────────────────
+// Maps the numeric parkId from the API to the badge id in progress store
+const PARK_TO_BADGE = {
+  1: 'epic_flinders',
+  2: 'epic_fitzroy',
+  3: 'epic_greatoceanroad',
+}
+
 // ─── Story Data ──────────────────────────────────────────────
 // Future: fetch from API by parkId
 const storyData = ref({
@@ -275,6 +283,10 @@ let eyeRestTimer = null
 let gemini = null
 let hasGreeted = false
 
+// Track whether epic badge has already been awarded this session
+// to prevent duplicate awards if celebration triggers multiple times
+let epicBadgeAwarded = false
+
 // ─── Computed ────────────────────────────────────────────────
 const currentTask = computed(() => storyData.value.tasks[currentTaskIndex.value])
 const completedCount = computed(() => storyData.value.tasks.filter(t => t.completed).length)
@@ -355,15 +367,11 @@ function startExploring() {
         isOwlTalking.value = false
 
         if (!hasGreeted && gemini) {
-          // ── 第一次 listening = setupComplete 刚到 ──
-          // 触发 Gemini 开场白，不开麦
           hasGreeted = true
           isListening.value = false
           currentTranscript.value = 'Ollie is getting ready...'
           gemini.triggerGreeting()
         } else {
-          // ── 后续 listening = Gemini 说完一轮 ──
-          // 自动开麦，让用户回应
           isListening.value = true
           gemini.setMicMuted(false)
         }
@@ -371,7 +379,6 @@ function startExploring() {
         wsState.value = 'connected'
         isOwlTalking.value = true
         isListening.value = false
-        // Gemini 开始说话时关麦，避免回声
         if (gemini) gemini.setMicMuted(true)
       } else if (state === 'disconnected') {
         wsState.value = 'disconnected'
@@ -427,10 +434,21 @@ function handleGeminiFunctionCall(payload) {
     } else if (nextAction === 'next_task') {
       advanceToNextTask()
     } else if (nextAction === 'celebration') {
-      // allCompleted will trigger celebration UI automatically
+      // All tasks completed - show celebration UI
       currentTranscript.value = `Amazing ${userName.value}! You found all the Time Fragments!`
       isOwlTalking.value = true
       setTimeout(() => { isOwlTalking.value = false }, 3000)
+
+      // Award epic park badge (only once per session to prevent duplicates)
+      if (!epicBadgeAwarded) {
+        epicBadgeAwarded = true
+        const badgeId = PARK_TO_BADGE[storyData.value.parkId]
+        if (badgeId) {
+          // Pass 0 XP because XP was already awarded per-task via addXp above
+          progressStore.completeEpicPark(badgeId, 0)
+        }
+      }
+
       trackEvent('explore_complete', { parkId: storyData.value.parkId })
     }
   }
