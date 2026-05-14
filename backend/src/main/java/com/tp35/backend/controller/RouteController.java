@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.tp35.backend.dto.RouteDTO;
+import com.tp35.backend.dto.RouteTaskDTO;
 import com.tp35.backend.service.RouteService;
 
 @RestController
@@ -26,5 +27,12 @@ public class RouteController {
             @RequestParam Integer parkId
     ) {
         return ResponseEntity.ok(routeService.getRoutesByParkId(parkId));
+    }
+
+    @GetMapping("/tasks")
+    public ResponseEntity<List<RouteTaskDTO>> getTasksByRouteId(
+            @RequestParam Integer routeId
+    ) {
+        return ResponseEntity.ok(routeService.getTasksByRouteId(routeId));
     }
 }

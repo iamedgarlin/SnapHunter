@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tp35.backend.dto.RouteDTO;
+import com.tp35.backend.dto.RouteTaskDTO;
 
 @Repository
 public class RouteRepository {
@@ -57,5 +58,29 @@ public class RouteRepository {
             route.setTaskCount(rs.getInt("task_count"));
             return route;
         }, parkId);
+    }
+
+    public List<RouteTaskDTO> findTasksByRouteId(Integer routeId) {
+        String sql = """
+            SELECT
+                rt.task_id,
+                rt.distance_from_route_m,
+                t.latitude,
+                t.longitude
+            FROM route_task rt
+            JOIN task t ON rt.task_id = t.task_id
+            WHERE rt.route_id = ?
+            """;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            RouteTaskDTO task = new RouteTaskDTO();
+
+            task.setTaskId(rs.getInt("task_id"));
+            task.setDistanceFromRouteM(rs.getDouble("distance_from_route_m"));
+            task.setLatitude(rs.getDouble("latitude"));
+            task.setLongitude(rs.getDouble("longitude"));
+
+            return task;
+        }, routeId);
     }
 }
