@@ -1,6 +1,7 @@
 package com.tp35.backend.dto;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.ArrayList;
 
 public class RouteDTO {
 
@@ -11,6 +12,7 @@ public class RouteDTO {
     private JsonNode startPoint;
     private JsonNode stLine;
     private Integer taskCount;
+    private ArrayList<JsonNode> sensorPoints;
 
     public RouteDTO() {
     }
@@ -69,6 +71,14 @@ public class RouteDTO {
 
     public void setTaskCount(Integer taskCount) {
         this.taskCount = taskCount;
+    }
+
+    public ArrayList<JsonNode> getSensorPoints() {
+        return sensorPoints;
+    }
+
+    public void setSensorPoints(ArrayList<JsonNode> sensorPoints) {
+        this.sensorPoints = sensorPoints;
     }
 }
 
