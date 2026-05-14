@@ -1,6 +1,7 @@
 package com.tp35.backend.repository;
 
 import java.util.List;
+import java.util.ArrayList;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -29,6 +30,10 @@ public class RouteRepository {
                 r.estimated_time_sec,
                 ST_AsGeoJSON(r.start_point) AS start_point,
                 ST_AsGeoJSON(r.st_line) AS st_line,
+                ST_AsGeoJSON(ST_LineInterpolatePoint(r.st_line, 0.2)) AS sensor_point_1,
+                ST_AsGeoJSON(ST_LineInterpolatePoint(r.st_line, 0.4)) AS sensor_point_2,
+                ST_AsGeoJSON(ST_LineInterpolatePoint(r.st_line, 0.6)) AS sensor_point_3,
+                ST_AsGeoJSON(ST_LineInterpolatePoint(r.st_line, 0.8)) AS sensor_point_4,
                 (
                     SELECT COUNT(*)
                     FROM route_task rt
@@ -52,6 +57,13 @@ public class RouteRepository {
                 route.setStLine(
                         objectMapper.readTree(rs.getString("st_line"))
                 );
+
+                ArrayList<com.fasterxml.jackson.databind.JsonNode> sensorPoints = new ArrayList<>();
+                sensorPoints.add(objectMapper.readTree(rs.getString("sensor_point_1")));
+                sensorPoints.add(objectMapper.readTree(rs.getString("sensor_point_2")));
+                sensorPoints.add(objectMapper.readTree(rs.getString("sensor_point_3")));
+                sensorPoints.add(objectMapper.readTree(rs.getString("sensor_point_4")));
+                route.setSensorPoints(sensorPoints);
             } catch (Exception e) {
                 throw new RuntimeException("Failed to parse GeoJSON", e);
             }
