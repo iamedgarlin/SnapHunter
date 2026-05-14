@@ -20,7 +20,7 @@ public class ParkRepository {
 
     }
 
-    public List<ParkDTO> findAllParks() {
+    public List<ParkDTO> findParksWithStories() {
         String sql = """
         SELECT DISTINCT
             p.park_id,
@@ -66,7 +66,10 @@ public class ParkRepository {
                     ST_Distance_Sphere(
                         p.st_point,
                         ST_SRID(POINT(?, ?), 4326)
-                    ) AS distance
+                    ) AS distance,
+                    (SELECT COUNT(*) FROM route r
+                    WHERE r.park_id = p.park_id
+                    ) AS route_count
                 FROM park p
                 WHERE NOT EXISTS (
                     SELECT 1
@@ -84,7 +87,8 @@ public class ParkRepository {
                 task_richness_score,
                 park_ha_level,
                 recommend_description,
-                distance
+                distance,
+                route_count
             FROM t
             """ + orderBy + """
             LIMIT 5
@@ -102,6 +106,7 @@ public class ParkRepository {
             park.setTaskRichnessScore(rs.getDouble("task_richness_score"));
             park.setParkHaLevel(rs.getDouble("park_ha_level"));
             park.setDistance(rs.getDouble("distance"));
+            park.setRouteCount(rs.getInt("route_count"));
             return park;
         }, userLongitude, userLatitude, weatherLevel);
     }
