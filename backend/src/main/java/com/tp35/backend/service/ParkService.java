@@ -24,8 +24,8 @@ public class ParkService {
         this.parkRepository = parkRepository;
     }
 
-    public List<ParkDTO> getAllParks() {
-        return parkRepository.findAllParks();
+    public List<ParkDTO> getParksWithStories() {
+        return parkRepository.findParksWithStories();
     }
 
     public List<ParkRecommendationDTO> getParksWithoutStoriesForRecommendation(

@@ -23,8 +23,8 @@ public class ParkController {
     }
 
     @GetMapping("/epic-parks")
-    public ResponseEntity<List<ParkDTO>> getAllParks() {
-        return ResponseEntity.ok(parkService.getAllParks());
+    public ResponseEntity<List<ParkDTO>> getParksWithStories() {
+        return ResponseEntity.ok(parkService.getParksWithStories());
     }
 
     @GetMapping("/common-parks")

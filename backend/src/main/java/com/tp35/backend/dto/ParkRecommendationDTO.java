@@ -13,6 +13,7 @@ public class ParkRecommendationDTO {
     private String parkHa;
     private String recommendDescription;
     private Double distance;
+    private Integer routeCount;
 
     @JsonIgnore
     private Double transportAccessibilityScore;
@@ -27,7 +28,7 @@ public class ParkRecommendationDTO {
     public ParkRecommendationDTO(Integer parkId, String parkName, Double latitude, Double longitude,
                                  String transportAccessibility, String taskRichness,
                                  String parkHa, String recommendDescription, Double transportAccessibilityScore,
-                                 Double taskRichnessScore, Double parkHaLevel, Double distance) {
+                                 Double taskRichnessScore, Double parkHaLevel, Double distance, Integer routeCount) {
         this.parkId = parkId;
         this.parkName = parkName;
         this.latitude = latitude;
@@ -40,6 +41,7 @@ public class ParkRecommendationDTO {
         this.taskRichnessScore = taskRichnessScore;
         this.parkHaLevel = parkHaLevel;
         this.distance = distance;
+        this.routeCount = routeCount;
     }
 
     public Integer getParkId() {
@@ -136,5 +138,13 @@ public class ParkRecommendationDTO {
 
     public void setDistance(Double distance) {
         this.distance = distance;
+    }
+
+    public Integer getRouteCount() {
+        return routeCount;
+    }
+
+    public void setRouteCount(Integer routeCount) {
+        this.routeCount = routeCount;
     }
 }
