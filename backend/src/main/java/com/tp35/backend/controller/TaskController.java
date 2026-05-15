@@ -40,4 +40,19 @@ public class TaskController {
 ) {
         return ResponseEntity.ok(taskService.getAllTasksBySeries(seriesId));
     }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> getTaskById(
+        @RequestParam Integer taskId
+    ) {
+        TaskDTO task = taskService.getTaskById(taskId);
+
+        if (task == null) {
+            return ResponseEntity
+                    .status(404)
+                    .body("Task ID not found");
+        }
+
+        return ResponseEntity.ok(task);
+    }
 }

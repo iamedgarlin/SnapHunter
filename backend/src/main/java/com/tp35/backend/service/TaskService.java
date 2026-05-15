@@ -27,4 +27,8 @@ public class TaskService {
     public List<TaskDTO> getAllTasksBySeries(Integer seriesId) {
         return taskRepository.findAllTasksBySeries(seriesId);
     }
+
+    public TaskDTO getTaskById(Integer taskId) {
+        return taskRepository.findTaskById(taskId);
+    }
 }
