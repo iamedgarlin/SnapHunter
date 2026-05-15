@@ -42,17 +42,9 @@ public class TaskController {
     }
 
     @GetMapping("/detail")
-    public ResponseEntity<?> getTaskById(
+    public ResponseEntity<TaskDTO> getTaskById(
         @RequestParam Integer taskId
     ) {
-        TaskDTO task = taskService.getTaskById(taskId);
-
-        if (task == null) {
-            return ResponseEntity
-                    .status(404)
-                    .body("Task ID not found");
-        }
-
-        return ResponseEntity.ok(task);
+        return ResponseEntity.ok(taskService.getTaskById(taskId));
     }
 }
