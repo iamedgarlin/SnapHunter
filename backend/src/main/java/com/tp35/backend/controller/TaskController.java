@@ -41,7 +41,7 @@ public class TaskController {
         return ResponseEntity.ok(taskService.getAllTasksBySeries(seriesId));
     }
 
-    @GetMapping("/search")
+    @GetMapping("/detail")
     public ResponseEntity<?> getTaskById(
         @RequestParam Integer taskId
     ) {
