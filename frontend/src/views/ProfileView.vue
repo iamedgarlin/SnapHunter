@@ -172,6 +172,41 @@
     </div>
 
   </div>
+
+  <!-- Onboarding -->
+  <Teleport to="body">
+    <div v-if="showOb" class="fixed inset-0 z-[999]" @click="nextOb">
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div v-if="obStep === 0" class="ob-card-profile" style="top: 44%; left: 50%; transform: translateX(-50%);">
+        <div class="ob-arrow-up-p"></div>
+        <div class="flex items-center gap-2 mb-2">
+          <PhUser :size="20" weight="duotone" color="#16a34a" />
+          <p class="text-base font-black text-gray-800">Your Profile</p>
+        </div>
+        <p class="text-sm text-gray-600 leading-relaxed">
+          Track your XP level, tasks completed, badges earned, parks visited, and daily streaks all in one place.
+        </p>
+        <div class="flex items-center justify-between mt-4">
+          <span class="text-xs font-bold text-gray-400">1 / 2</span>
+          <button class="ob-next-p" @click.stop="nextOb">Next</button>
+        </div>
+      </div>
+      <div v-if="obStep === 1" class="ob-card-profile" style="bottom: 28%; left: 50%; transform: translateX(-50%);">
+        <div class="flex items-center gap-2 mb-2">
+          <PhFlame :size="20" weight="duotone" color="#f59e0b" />
+          <p class="text-base font-black text-gray-800">Streaks & Titles</p>
+        </div>
+        <p class="text-sm text-gray-600 leading-relaxed">
+          Complete tasks on consecutive days to build your streak. Unlock titles by levelling up and earning badges. Tap the title button to choose which one to display!
+        </p>
+        <div class="ob-arrow-down-p"></div>
+        <div class="flex items-center justify-between mt-4">
+          <span class="text-xs font-bold text-gray-400">2 / 2</span>
+          <button class="ob-next-p" @click.stop="nextOb">Got it!</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -190,6 +225,14 @@ const progressStore = useProgressStore()
 const userName = authStore.user?.nickname || 'Explorer'
 const showTitleModal = ref(false)
 
+// Onboarding
+const OB_KEY = 'snaphunter_profile_onboarded'
+const showOb = ref(false)
+const obStep = ref(0)
+function nextOb() {
+  if (obStep.value < 1) { obStep.value++ } else { showOb.value = false; localStorage.setItem(OB_KEY, 'true') }
+}
+
 function selectTitle(titleId) {
   progressStore.setActiveTitle(titleId)
   showTitleModal.value = false
@@ -203,5 +246,13 @@ async function handleLogout() {
 
 onMounted(() => {
   progressStore.init()
+  if (!localStorage.getItem(OB_KEY)) { showOb.value = true; obStep.value = 0 }
 })
 </script>
+
+<style>
+.ob-card-profile { position: absolute; width: calc(100% - 32px); max-width: 360px; padding: 20px; border-radius: 24px; background: white; border: 2px solid #d1fae5; border-bottom: 4px solid #34d399; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 1000; font-family: var(--font-game), system-ui, sans-serif }
+.ob-next-p { padding: 8px 20px; border-radius: 14px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-bottom: 3px solid #047857; color: white; font-size: 13px; font-weight: 900; cursor: pointer; font-family: var(--font-game), system-ui, sans-serif }
+.ob-arrow-up-p { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 10px solid white }
+.ob-arrow-down-p { position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-top: 10px solid white }
+</style>

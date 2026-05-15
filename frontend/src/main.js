@@ -12,6 +12,7 @@ import MapView from './views/MapView.vue'
 import BadgesView from './views/BadgesView.vue'
 import ProfileView from './views/ProfileView.vue'
 import ParkExploreView from './views/ParkExploreView.vue'
+import ParkAdventureView from './views/ParkAdventureView.vue'
 
 import { useAuthStore } from './stores/auth'
 
@@ -27,6 +28,7 @@ const router = createRouter({
     { path: '/tasks', component: TasksView },
     { path: '/map', component: MapView },
     { path: '/explore', component: ParkExploreView },
+    { path: '/adventure', component: ParkAdventureView },
     { path: '/badges', component: BadgesView },
     { path: '/profile', component: ProfileView },
   ]

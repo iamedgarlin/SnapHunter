@@ -147,53 +147,27 @@
           </button>
         </div>
 
-        <!-- ═══ Recommended Parks ═══ -->
+        <!-- ═══ Adventure Parks (with routes) ═══ -->
         <div :class="epicParks.length ? 'mt-2' : ''">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
-              <PhTree :size="16" weight="duotone" color="#10b981" />
-              <p class="text-sm font-black text-gray-700">Recommended Parks</p>
+              <PhCompass :size="16" weight="duotone" color="#10b981" />
+              <p class="text-sm font-black text-gray-700">Adventure Parks</p>
             </div>
-            <button
-              class="text-xs font-black px-2 py-1 rounded-xl flex items-center gap-1 active:scale-95 transition-all"
-              :style="commonParksLoading
-                ? 'background:#f1f5f9;color:#94a3b8;pointer-events:none'
-                : 'background:#ecfdf5;color:#059669;border:1px solid #a7f3d0'"
-              :disabled="commonParksLoading"
-              @click="refreshCommonParks">
-              <PhArrowsClockwise :size="12" weight="bold" :class="commonParksLoading ? 'animate-spin' : ''" />
-              {{ commonParksLoading ? 'Loading...' : 'Refresh' }}
-            </button>
-          </div>
-          <!-- Mode toggle -->
-          <div class="recommend-mode-toggle mt-2">
-            <button
-              class="recommend-mode-btn"
-              :class="recommendMode === 'nearest' ? 'recommend-mode-active' : ''"
-              @click="switchRecommendMode('nearest')">
-              <PhMapTrifold :size="13" weight="duotone" />
-              Nearest
-            </button>
-            <button
-              class="recommend-mode-btn"
-              :class="recommendMode === 'surprise' ? 'recommend-mode-active' : ''"
-              @click="switchRecommendMode('surprise')">
-              <PhShuffle :size="13" weight="duotone" />
-              Surprise Me
-            </button>
+            <span class="text-xs font-bold text-gray-400">sorted by distance</span>
           </div>
         </div>
 
         <!-- Loading state -->
         <div v-if="commonParksLoading && !commonParks.length" class="flex flex-col items-center gap-2 py-6">
           <PhSpinnerGap :size="24" weight="bold" color="#10b981" class="animate-spin" />
-          <p class="text-xs font-semibold text-gray-400">Finding parks near you...</p>
+          <p class="text-xs font-semibold text-gray-400">Finding adventure parks...</p>
         </div>
 
-        <!-- No parks (weather veto) -->
+        <!-- No parks -->
         <div v-else-if="!commonParksLoading && !commonParks.length && commonParksFetched" class="card-game flex flex-col items-center gap-2 py-4">
           <PhCloudRain :size="28" weight="duotone" color="#94a3b8" />
-          <p class="text-xs font-black text-gray-500 text-center">Weather is not ideal for outdoor activities right now</p>
+          <p class="text-xs font-black text-gray-500 text-center">No adventure parks available right now</p>
           <p class="text-xs text-gray-400 text-center">Check back when conditions improve!</p>
         </div>
 
@@ -246,9 +220,89 @@
           </div>
           <!-- Description -->
           <p class="text-xs text-gray-500 mt-2 leading-relaxed">{{ cp.recommendDescription }}</p>
+          <!-- Adventure button -->
+          <button class="adventure-btn mt-2"
+            @click.stop="startAdventure(cp)">
+            <PhCompass :size="14" weight="duotone" color="white" />
+            <span>Start Adventure</span>
+          </button>
         </div>
       </div>
     </div>
+
+    <!-- Onboarding overlay -->
+    <Teleport to="body">
+      <div v-if="showMapOnboarding" class="map-onboarding-overlay" @click="nextMapOnboardingStep">
+        <div class="absolute inset-0 bg-black/50"></div>
+
+        <!-- Step 1: Map overview -->
+        <div v-if="mapOnboardingStep === 0" class="map-ob-card" style="top: 12%; left: 50%; transform: translateX(-50%);">
+          <div class="flex items-center gap-2 mb-2">
+            <PhMapTrifold :size="20" weight="duotone" color="#3b82f6" />
+            <p class="text-base font-black text-gray-800">Discovery Map</p>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Your blue dot shows where you are. Walk near parks to unlock them! Epic Parks have story quizzes for bonus XP.
+          </p>
+          <div class="map-ob-arrow-down"></div>
+          <div class="map-ob-footer">
+            <span class="text-xs font-bold text-gray-400">1 / 3</span>
+            <button class="map-ob-next-btn" @click.stop="nextMapOnboardingStep">Next</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Adventure Parks -->
+        <div v-if="mapOnboardingStep === 1" class="map-ob-card" style="bottom: 24%; left: 50%; transform: translateX(-50%);">
+          <div class="flex items-center gap-2 mb-2">
+            <PhCompass :size="20" weight="duotone" color="#10b981" />
+            <p class="text-base font-black text-gray-800">Adventure Parks</p>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            These parks have walking trails with photo and sensor tasks. Tap "Start Adventure" to begin a guided route! Use the green arrow to get directions.
+          </p>
+          <div class="map-ob-arrow-down"></div>
+          <div class="map-ob-footer">
+            <span class="text-xs font-bold text-gray-400">2 / 3</span>
+            <button class="map-ob-next-btn" @click.stop="nextMapOnboardingStep">Next</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Tags -->
+        <div v-if="mapOnboardingStep === 2" class="map-ob-card" style="bottom: 18%; left: 50%; transform: translateX(-50%);">
+          <div class="flex items-center gap-2 mb-2">
+            <PhInfo :size="20" weight="duotone" color="#3b82f6" />
+            <p class="text-base font-black text-gray-800">Understanding Park Tags</p>
+          </div>
+          <div class="flex flex-col gap-2.5 mt-1">
+            <div class="flex items-start gap-2">
+              <PhMapPin :size="16" weight="duotone" color="#4338ca" class="flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-black text-gray-700">Park Size</p>
+                <p class="text-xs text-gray-500">Small (&lt;1 ha): quick visits. Medium (1-5 ha): short exploration. Large (&gt;5 ha): longer walks.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <PhBus :size="16" weight="duotone" color="#15803d" class="flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-black text-gray-700">Transport Access</p>
+                <p class="text-xs text-gray-500">How easy to reach by public transport. Easy, moderate, or harder to reach.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <PhFlower :size="16" weight="duotone" color="#be185d" class="flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-black text-gray-700">Activity Richness</p>
+                <p class="text-xs text-gray-500">How many exploration points the park offers for tasks and discovery.</p>
+              </div>
+            </div>
+          </div>
+          <div class="map-ob-footer">
+            <span class="text-xs font-bold text-gray-400">3 / 3</span>
+            <button class="map-ob-next-btn" @click.stop="nextMapOnboardingStep">Got it!</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -265,12 +319,39 @@ import {
   PhCaretDown, PhArrowUp, PhArrowBendDownRight, PhArrowBendDownLeft,
   PhArrowUUpRight, PhArrowUUpLeft, PhCastleTurret, PhCompass,
   PhSpeakerHigh, PhSpeakerSlash, PhLightning, PhTrophy,
-  PhArrowsClockwise, PhSpinnerGap, PhCloudRain, PhMapPin, PhBus,
+  PhSpinnerGap, PhCloudRain, PhMapPin, PhBus,
   PhFlower, PhSun, PhCloud, PhCloudSun, PhSnowflake, PhCloudFog, PhThermometerSimple,
-  PhMapTrifold, PhShuffle
+  PhMapTrifold, PhInfo
 } from '@phosphor-icons/vue'
 
 const PARKS_UNLOCK_KEY = 'snaphunter_parks_unlocked'
+const MAP_ONBOARDING_KEY = 'snaphunter_map_onboarded'
+
+// ─── Map onboarding ─────────────────────────────────────────
+const showMapOnboarding = ref(false)
+const mapOnboardingStep = ref(0)
+
+const mapOnboardingSteps = [
+  { id: 'map' },
+  { id: 'adventure' },
+  { id: 'tags' },
+]
+
+function nextMapOnboardingStep() {
+  if (mapOnboardingStep.value < mapOnboardingSteps.length - 1) {
+    mapOnboardingStep.value++
+  } else {
+    showMapOnboarding.value = false
+    localStorage.setItem(MAP_ONBOARDING_KEY, 'true')
+  }
+}
+
+function checkMapOnboarding() {
+  if (!localStorage.getItem(MAP_ONBOARDING_KEY)) {
+    showMapOnboarding.value = true
+    mapOnboardingStep.value = 0
+  }
+}
 
 const UNLOCK_RADIUS_KM = 0.2
 const ARRIVAL_RADIUS_KM = 0.05
@@ -298,9 +379,31 @@ async function fetchEpicParks() {
         )
 
         for (const story of storiesRes.data) {
-          let idx = 1
+          // Prefer summary fields from the stories API so the browser does not make
+          // an intentional final request that returns 404.
+          const storyBonus = Number(
+            story.totalBonus ?? story.totalReward ?? story.bonusReward ?? story.reward ?? 0
+          )
 
-          while (true) {
+          if (storyBonus > 0) {
+            totalBonus += storyBonus
+            continue
+          }
+
+          if (Array.isArray(story.questions)) {
+            totalBonus += story.questions.reduce((sum, q) => sum + Number(q.reward || 0), 0)
+            continue
+          }
+
+          const questionCount = Number(
+            story.questionCount ?? story.totalQuestions ?? story.questionsCount ?? 0
+          )
+
+          if (!questionCount || questionCount <= 0) {
+            continue
+          }
+
+          for (let idx = 1; idx <= questionCount; idx++) {
             const qRes = await axios.get(
               `${API_BASE}/api/epic-parks/stories/question`,
               {
@@ -308,27 +411,16 @@ async function fetchEpicParks() {
                   storyId: story.storyId,
                   orderIndex: idx,
                 },
-                validateStatus: () => true,
               }
             )
-
-            if (qRes.status === 404) {
-              break
-            }
-
-            if (qRes.status !== 200) {
-              console.warn('Unexpected status:', qRes.status)
-              break
-            }
 
             const question = qRes.data
 
             if (!question || !question.questionId) {
-              break
+              continue
             }
 
-            totalBonus += question.reward || 0
-            idx++
+            totalBonus += Number(question.reward || 0)
           }
         }
       } catch (err) {
@@ -372,27 +464,15 @@ const commonParks = ref([])
 const commonParksLoading = ref(false)
 const commonParksFetched = ref(false)
 const commonParkMarkers = {}
-const recommendMode = ref('nearest') // 'nearest' or 'surprise'
 
-function switchRecommendMode(mode) {
-  if (mode === recommendMode.value && commonParksFetched.value) return
-  recommendMode.value = mode
-  fetchCommonParks(mode === 'surprise')
-}
-
-function refreshCommonParks() {
-  fetchCommonParks(recommendMode.value === 'surprise')
-}
-
-async function fetchCommonParks(random = false) {
+async function fetchCommonParks() {
   if (!userPos.value) return
   commonParksLoading.value = true
   try {
-    const res = await axios.get(`${API_BASE}/api/common-parks`, {
+    const res = await axios.get(`${API_BASE}/api/common-route-parks`, {
       params: {
         latitude: userPos.value.lat,
         longitude: userPos.value.lng,
-        random,
       }
     })
     commonParks.value = res.data || []
@@ -413,7 +493,7 @@ async function fetchCommonParks(random = false) {
       }
     }
   } catch (e) {
-    console.error('Failed to fetch common parks:', e)
+    console.error('Failed to fetch adventure parks:', e)
     commonParks.value = []
     commonParksFetched.value = true
   } finally {
@@ -432,6 +512,13 @@ function focusCommonPark(cp) {
     map.setView([cp.latitude, cp.longitude], 16)
     commonParkMarkers[cp.parkId]?.openPopup()
   }
+}
+
+function startAdventure(cp) {
+  router.push({
+    path: '/adventure',
+    query: { parkId: String(cp.parkId), parkName: cp.parkName },
+  })
 }
 
 /* ─── Tag styling helpers ─── */
@@ -687,12 +774,27 @@ function showUnlockAnim(park) {
 }
 
 /* ─── Map init ─── */
-function initMap() {
-  map = L.map('map', { center: [-37.8136, 144.9631], zoom: 13, zoomControl: false })
+async function initMap() {
+  await nextTick()
+
+  const mapEl = document.getElementById('map')
+
+  if (!mapEl) {
+    console.warn('Leaflet map container #map was not found. Map initialisation skipped.')
+    return false
+  }
+
+  if (map) {
+    map.remove()
+    map = null
+  }
+
+  map = L.map(mapEl, { center: [-37.8136, 144.9631], zoom: 13, zoomControl: false })
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 }).addTo(map)
   parks.value.forEach(p => addParkMarker(p))
   createHudControls()
   map.getContainer().addEventListener('click', e => { if (e.target.closest('.js-task-cancel')) clearRoute() })
+  return true
 }
 
 function parkPopupHtml(park) {
@@ -743,7 +845,7 @@ function startTracking() {
       if (!weatherFetched) {
         weatherFetched = true
         fetchWeather(lat, lng)
-        fetchCommonParks(false)
+        fetchCommonParks()
       }
     } else { userMarker.setLatLng([lat, lng]) }
     checkUnlocks(lat, lng); checkArrival(lat, lng); checkEpicParkProximity(lat, lng)
@@ -791,8 +893,8 @@ function checkArrival(lat, lng) {
   }
 }
 
-function centerOnUser() { if (userPos.value) map.setView([userPos.value.lat, userPos.value.lng], 15) }
-function focusPark(park) { map.setView([park.lat, park.lng], 16); parkMarkers[park.id]?.openPopup() }
+function centerOnUser() { if (map && userPos.value) map.setView([userPos.value.lat, userPos.value.lng], 15) }
+function focusPark(park) { if (!map) return; map.setView([park.lat, park.lng], 16); parkMarkers[park.id]?.openPopup() }
 
 /* ─── OSRM Navigation ─── */
 async function toggleNavigation(target) {
@@ -888,9 +990,12 @@ onMounted(async () => {
   progressStore.init()
   await fetchEpicParks()
   loadUnlockedParks()
-  initMap()
-  startTracking()
-  handleRouteQuery()
+  const mapReady = await initMap()
+  if (mapReady) {
+    startTracking()
+    handleRouteQuery()
+  }
+  checkMapOnboarding()
 })
 onUnmounted(() => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId)
@@ -1155,6 +1260,100 @@ onUnmounted(() => {
   font-weight: 800;
   line-height: 1;
   font-family: var(--font-game), system-ui, sans-serif
+}
+
+.adventure-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-bottom: 3px solid #047857;
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font-game), system-ui, sans-serif;
+  transition: transform 0.1s;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25)
+}
+
+.adventure-btn:active {
+  transform: translateY(2px);
+  border-bottom-width: 1px
+}
+
+.map-onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  isolation: isolate;
+}
+
+.map-onboarding-overlay > .absolute {
+  z-index: 0;
+}
+
+.map-onboarding-tooltip {
+  max-width: 320px;
+  width: calc(100% - 48px);
+  padding: 16px 20px;
+  border-radius: 20px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(8px);
+  border: 2px solid rgba(255,255,255,0.1);
+  z-index: 1000;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3)
+}
+
+/* ─── Map onboarding card ─── */
+.map-ob-card {
+  position: absolute;
+  width: calc(100% - 32px);
+  max-width: 360px;
+  padding: 20px;
+  border-radius: 24px;
+  background: white;
+  border: 2px solid #d1fae5;
+  border-bottom: 4px solid #34d399;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  z-index: 20001;
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+.map-ob-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px
+}
+
+.map-ob-next-btn {
+  padding: 8px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-bottom: 3px solid #047857;
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+.map-ob-arrow-down {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid white
 }
 
 /* ─── Recommend mode toggle ─── */

@@ -253,6 +253,40 @@
     </div>
 
   </div>
+
+  <!-- Onboarding -->
+  <Teleport to="body">
+    <div v-if="showOb" class="fixed inset-0 z-[999]" @click="nextOb">
+      <div class="absolute inset-0 bg-black/50"></div>
+      <div v-if="obStep === 0" class="ob-card-badges" style="top: 28%; left: 50%; transform: translateX(-50%);">
+        <div class="ob-arrow-up-b"></div>
+        <div class="flex items-center gap-2 mb-2">
+          <PhMedal :size="20" weight="duotone" color="#f59e0b" />
+          <p class="text-base font-black text-gray-800">Your Badge Collection</p>
+        </div>
+        <p class="text-sm text-gray-600 leading-relaxed">
+          Earn badges by completing series tasks, visiting Epic Parks, and reaching achievements like streaks or photo milestones.
+        </p>
+        <div class="flex items-center justify-between mt-4">
+          <span class="text-xs font-bold text-gray-400">1 / 2</span>
+          <button class="ob-next-b" @click.stop="nextOb">Next</button>
+        </div>
+      </div>
+      <div v-if="obStep === 1" class="ob-card-badges" style="top: 42%; left: 50%; transform: translateX(-50%);">
+        <div class="flex items-center gap-2 mb-2">
+          <PhLock :size="20" weight="duotone" color="#d97706" />
+          <p class="text-base font-black text-gray-800">Unlock Badges</p>
+        </div>
+        <p class="text-sm text-gray-600 leading-relaxed">
+          Tap any badge to see how to unlock it. Locked badges show what you need to do. Earned badges display a green checkmark!
+        </p>
+        <div class="flex items-center justify-between mt-4">
+          <span class="text-xs font-bold text-gray-400">2 / 2</span>
+          <button class="ob-next-b" @click.stop="nextOb">Got it!</button>
+        </div>
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -269,6 +303,14 @@ const DEFS = progressStore.BADGE_DEFINITIONS
 
 const showDetail = ref(false)
 const detailBadge = ref(null)
+
+// Onboarding
+const OB_KEY = 'snaphunter_badges_onboarded'
+const showOb = ref(false)
+const obStep = ref(0)
+function nextOb() {
+  if (obStep.value < 1) { obStep.value++ } else { showOb.value = false; localStorage.setItem(OB_KEY, 'true') }
+}
 
 // Series badges with visual config
 const seriesBadges = [
@@ -372,5 +414,12 @@ function openBadgeDetail(badge) {
 
 onMounted(() => {
   progressStore.init()
+  if (!localStorage.getItem(OB_KEY)) { showOb.value = true; obStep.value = 0 }
 })
 </script>
+
+<style>
+.ob-card-badges { position: absolute; width: calc(100% - 32px); max-width: 360px; padding: 20px; border-radius: 24px; background: white; border: 2px solid #fde68a; border-bottom: 4px solid #fbbf24; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 1000; font-family: var(--font-game), system-ui, sans-serif }
+.ob-next-b { padding: 8px 20px; border-radius: 14px; background: linear-gradient(135deg, #f59e0b, #d97706); border: none; border-bottom: 3px solid #b45309; color: white; font-size: 13px; font-weight: 900; cursor: pointer; font-family: var(--font-game), system-ui, sans-serif }
+.ob-arrow-up-b { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 10px solid white }
+</style>

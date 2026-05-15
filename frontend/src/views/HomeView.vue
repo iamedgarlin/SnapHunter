@@ -33,89 +33,7 @@
 
     <div class="px-4 flex flex-col gap-4 mt-4">
 
-      <!-- XP / Level bar -->
-      <div class="card-game">
-        <div class="flex items-center justify-between mb-2">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white text-base"
-              style="background: linear-gradient(135deg, #f59e0b, #ef4444); border-bottom: 3px solid #b45309">
-              {{ progressStore.level }}
-            </div>
-            <div>
-              <p class="text-xs font-black text-gray-500 uppercase tracking-wide">Level</p>
-              <div class="flex items-center gap-1">
-                <PhCompass :size="14" weight="duotone" color="#10b981" />
-                <p class="text-sm font-black text-gray-800">{{ progressStore.levelTitle }}</p>
-              </div>
-            </div>
-          </div>
-          <div class="flex items-center gap-1">
-            <PhLightning :size="14" weight="duotone" color="#f59e0b" />
-            <p class="text-xs font-black text-amber-500">
-              {{ progressStore.xpInCurrentLevel }} / {{ progressStore.xpNeededForLevel }} XP
-            </p>
-          </div>
-        </div>
-        <div class="h-4 rounded-full overflow-hidden border-2 border-gray-200" style="background: #f1f5f9">
-          <div class="h-full rounded-full relative transition-all duration-500"
-            :style="`width: ${progressStore.xpPercent}%; background: linear-gradient(to right, #fbbf24, #f59e0b)`">
-            <div v-if="progressStore.xpPercent >= 15" class="absolute right-2 top-0 h-full flex items-center">
-              <span class="text-white text-xs font-black">{{ progressStore.xpPercent }}%</span>
-            </div>
-          </div>
-        </div>
-        <p class="text-xs font-semibold text-gray-400 mt-1.5">
-          {{ progressStore.xpNeededForLevel - progressStore.xpInCurrentLevel }} XP to next level
-        </p>
-      </div>
-
-      <!-- Mode toggle + series dropdown -->
-      <div class="relative">
-        <div class="flex gap-2">
-          <button
-            class="flex-1 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all"
-            :style="mode === 'random'
-              ? 'background: #10b981; color: white; border: 2px solid #059669; border-bottom: 4px solid #047857'
-              : 'background: white; color: #94a3b8; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1'"
-            @click="switchMode('random')">
-            <PhShuffle :size="16" weight="duotone" :color="mode === 'random' ? 'white' : '#94a3b8'" />
-            Random
-          </button>
-          <button
-            class="flex-1 py-3 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all"
-            :style="mode === 'series'
-              ? 'background: #10b981; color: white; border: 2px solid #059669; border-bottom: 4px solid #047857'
-              : 'background: white; color: #94a3b8; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1'"
-            @click="switchMode('series')">
-            <PhStarFour :size="16" weight="duotone" :color="mode === 'series' ? 'white' : '#94a3b8'" />
-            Series
-            <PhCaretDown :size="14" weight="bold" :color="mode === 'series' ? 'white' : '#94a3b8'" />
-          </button>
-        </div>
-
-        <!-- Series dropdown -->
-        <div v-if="mode === 'series' && showSeriesDropdown"
-          class="absolute right-0 top-14 z-20 w-1/2 rounded-2xl overflow-hidden"
-          style="background: white; border: 2px solid #e2e8f0; border-bottom: 4px solid #cbd5e1">
-          <div v-for="series in seriesList" :key="series.id"
-            class="flex items-center gap-3 px-3 py-3 cursor-pointer transition-all"
-            :style="selectedSeriesId === series.id ? `background: ${series.iconBg}` : 'background: white'"
-            @click="selectSeries(series.id)">
-            <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              :style="`background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 2px solid ${series.borderBottomColor}`">
-              <component :is="series.icon" :size="18" weight="duotone" :color="series.color" />
-            </div>
-            <p class="text-sm font-black flex-1"
-              :style="`color: ${selectedSeriesId === series.id ? series.color : '#374151'}`">
-              {{ series.name }}
-            </p>
-            <PhCheck v-if="selectedSeriesId === series.id" :size="14" weight="bold" :color="series.color" />
-          </div>
-        </div>
-      </div>
-
-      <!-- Random task card -->
-      <template v-if="!selectedSeriesId">
+      <!-- Today's Mission (random tasks) -->
         <div class="card-game" style="border-color: #bbf7d0; border-bottom-color: #34d399">
           <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-1.5">
@@ -178,78 +96,73 @@
             </div>
           </div>
         </div>
-    </template>
 
-      <!-- Series task card -->
-      <template v-else>
-        <div class="card-game"
-          :style="`border-color: ${currentSeries?.borderColor}; border-bottom-color: ${currentSeries?.borderBottomColor}`">
-          <div class="flex items-center justify-between mb-3">
-            <div class="flex items-center gap-2">
-              <component :is="currentSeries?.icon" :size="18" weight="duotone" :color="currentSeries?.color" />
-              <p class="text-base font-black text-gray-800">{{ currentSeries?.name }} Tasks</p>
-            </div>
-            <div class="flex items-center gap-3">
-              <span class="text-xs font-black rounded-xl px-2 py-1"
-                :style="`color: ${currentSeries?.color}; background: ${currentSeries?.iconBg}`">
-                {{ completedSeriesCount }}/{{ seriesTasks.length }} done
-              </span>
-              <div class="flex items-center gap-1">
-                <button @click="handleSeriesRefresh"
-                  class="w-7 h-7 rounded-xl flex items-center justify-center"
-                  :style="progressStore.refreshesLeftToday > 0
-                    ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}; border-bottom: 3px solid ${currentSeries?.borderBottomColor}`
-                    : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
-                  :disabled="progressStore.refreshesLeftToday <= 0">
-                  <PhArrowsClockwise :size="14" weight="duotone"
-                    :color="progressStore.refreshesLeftToday > 0 ? currentSeries?.color : '#94a3b8'" />
-                </button>
-                <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3 rerolls</span>
-              </div>
-            </div>
+      <!-- ═══ Recommended Parks (no-route parks) ═══ -->
+      <div class="card-game" style="border-color: #d1fae5; border-bottom-color: #6ee7b7">
+        <div class="flex items-center justify-between mb-3">
+          <div class="flex items-center gap-1.5">
+            <PhTree :size="18" weight="duotone" color="#10b981" />
+            <p class="text-base font-black text-gray-800">Recommended Parks</p>
           </div>
-          <div v-if="loadingSeriesTasks" class="flex items-center justify-center py-6 gap-2">
-            <PhSpinner :size="20" weight="duotone" :color="currentSeries?.color" class="animate-spin" />
-            <span class="text-sm font-bold text-gray-400">Loading tasks...</span>
-          </div>
-          <div v-else class="flex flex-col gap-2">
-            <div v-for="task in seriesTasks" :key="task.taskId"
-              class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
-              :style="task.done
-                ? `background: ${currentSeries?.iconBg}; border: 2px solid ${currentSeries?.borderColor}`
-                : 'background: #f8fafc; border: 2px solid #e2e8f0'"
-              @click="openConfirm(task)">
-              <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                :style="task.done ? `background: ${currentSeries?.iconBg}` : 'background: #f1f5f9'">
-                <PhCamera :size="18" weight="duotone"
-                  :color="task.done ? currentSeries?.color : '#94a3b8'" />
-              </div>
-              <div class="flex-1">
-                <p class="text-sm font-bold"
-                  :style="task.done
-                    ? `color: ${currentSeries?.color}; text-decoration: line-through`
-                    : 'color: #374151'">
-                  {{ task.taskName }}
-                </p>
-                <p class="text-xs text-gray-400 mt-0.5">{{ task.taskDescription }}</p>
-              </div>
-              <div v-if="!task.done" class="flex items-center gap-1.5 flex-shrink-0">
-                <div class="flex items-center gap-0.5">
-                  <PhLightning :size="12" weight="duotone" color="#f59e0b" />
-                  <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
-                </div>
-                <button v-if="task.latitude != null"
-                  class="w-7 h-7 rounded-lg flex items-center justify-center"
-                  style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
-                  @click.stop="goNavigate(task)">
-                  <PhNavigationArrow :size="13" weight="duotone" color="#3b82f6" />
-                </button>
-              </div>
-              <PhCheckCircle v-else :size="18" weight="duotone" :color="currentSeries?.color" />
-            </div>
+          <div class="flex items-center gap-1">
+            <button @click="handleRecParkRefresh"
+              class="w-7 h-7 rounded-xl flex items-center justify-center relative"
+              :style="progressStore.refreshesLeftToday > 0
+                ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
+                : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+              :disabled="progressStore.refreshesLeftToday <= 0">
+              <PhArrowsClockwise :size="14" weight="duotone"
+                :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'"
+                :class="recParksLoading ? 'animate-spin' : ''" />
+            </button>
+            <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
           </div>
         </div>
-      </template>
+        <div v-if="recParksLoading && !recParks.length" class="flex items-center justify-center py-6 gap-2">
+          <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
+          <span class="text-sm font-bold text-gray-400">Finding nearby parks...</span>
+        </div>
+        <div v-else-if="!recParksLoading && !recParks.length" class="flex flex-col items-center gap-2 py-4">
+          <PhTree :size="28" weight="duotone" color="#94a3b8" />
+          <p class="text-xs font-black text-gray-500 text-center">No parks available right now</p>
+        </div>
+        <div v-else class="flex flex-col gap-2">
+          <div v-for="rp in recParks" :key="rp.parkId"
+            class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
+            style="background: #f8fafc; border: 2px solid #e2e8f0"
+            @click="goNavigate({ latitude: rp.latitude, longitude: rp.longitude, taskName: rp.parkName })">
+            <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
+              style="background:#ecfdf5;border:2px solid #a7f3d0;border-bottom:3px solid #6ee7b7">
+              <PhTree :size="20" weight="duotone" color="#059669" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-bold text-gray-800 truncate">{{ rp.parkName }}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-xs font-semibold text-gray-400">{{ formatDistM(rp.distance) }}</span>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-1.5">
+                <span class="rec-park-tag" :style="sizeTagStyle(rp.parkHa)">
+                  <PhMapPin :size="9" weight="bold" />
+                  {{ rp.parkHa }}
+                </span>
+                <span class="rec-park-tag" :style="accessTagStyle(rp.transportAccessibility)">
+                  <PhBus :size="9" weight="bold" />
+                  {{ rp.transportAccessibility }}
+                </span>
+                <span class="rec-park-tag" :style="richnessTagStyle(rp.taskRichness)">
+                  <PhFlower :size="9" weight="bold" />
+                  {{ rp.taskRichness }}
+                </span>
+              </div>
+            </div>
+            <button class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+              style="background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #86efac"
+              @click.stop="goNavigate({ latitude: rp.latitude, longitude: rp.longitude, taskName: rp.parkName })">
+              <PhNavigationArrow :size="14" weight="duotone" color="#10b981" />
+            </button>
+          </div>
+        </div>
+      </div>
 
     </div>
 
@@ -257,7 +170,83 @@
     <input ref="fileInput" type="file" accept="image/*" capture="environment"
       class="hidden" @change="handlePhotoCapture" />
 
-    <!-- Confirm modal -->
+    <!-- Onboarding overlay -->
+    <Teleport to="body">
+      <div v-if="showOnboarding" class="fixed inset-0 z-[999]" @click="nextOnboardingStep">
+        <!-- Dim background -->
+        <div class="absolute inset-0 bg-black/50"></div>
+
+        <!-- Step 1: Today's Mission -->
+        <div v-if="onboardingStep === 0" class="ob-card" style="top: 56%; left: 50%; transform: translateX(-50%);">
+          <div class="ob-arrow-up"></div>
+          <div class="flex items-center gap-2 mb-2">
+            <PhTarget :size="20" weight="duotone" color="#10b981" />
+            <p class="text-base font-black text-gray-800">Today's Mission</p>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Each day you get random photo tasks. Go to the location, take a photo, and our AI checks if it matches. Complete tasks to earn XP!
+          </p>
+          <p class="text-sm text-gray-600 leading-relaxed mt-2">
+            Tap the refresh button to reroll tasks (3 times per day).
+          </p>
+          <div class="ob-footer">
+            <span class="text-xs font-bold text-gray-400">1 / 3</span>
+            <button class="ob-next-btn" @click.stop="nextOnboardingStep">Next</button>
+          </div>
+        </div>
+
+        <!-- Step 2: Recommended Parks -->
+        <div v-if="onboardingStep === 1" class="ob-card" style="bottom: 22%; left: 50%; transform: translateX(-50%);">
+          <div class="flex items-center gap-2 mb-2">
+            <PhTree :size="20" weight="duotone" color="#10b981" />
+            <p class="text-base font-black text-gray-800">Recommended Parks</p>
+          </div>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Scroll down to find nearby parks. Tap a park to navigate there. Each park has tags showing useful info.
+          </p>
+          <div class="ob-arrow-down"></div>
+          <div class="ob-footer">
+            <span class="text-xs font-bold text-gray-400">2 / 3</span>
+            <button class="ob-next-btn" @click.stop="nextOnboardingStep">Next</button>
+          </div>
+        </div>
+
+        <!-- Step 3: Tag meanings -->
+        <div v-if="onboardingStep === 2" class="ob-card" style="bottom: 16%; left: 50%; transform: translateX(-50%);">
+          <div class="flex items-center gap-2 mb-2">
+            <PhInfo :size="20" weight="duotone" color="#3b82f6" />
+            <p class="text-base font-black text-gray-800">Understanding Park Tags</p>
+          </div>
+          <div class="flex flex-col gap-2.5 mt-1">
+            <div class="flex items-start gap-2">
+              <PhMapPin :size="16" weight="duotone" color="#4338ca" class="flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-black text-gray-700">Park Size</p>
+                <p class="text-xs text-gray-500">Small (&lt;1 ha): quick visits. Medium (1-5 ha): short exploration. Large (&gt;5 ha): longer walks and route adventures.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <PhBus :size="16" weight="duotone" color="#15803d" class="flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-black text-gray-700">Transport Access</p>
+                <p class="text-xs text-gray-500">Easy to get to: nearby stops. Moderately easy: may need longer walk. Harder to reach: limited transport.</p>
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <PhFlower :size="16" weight="duotone" color="#be185d" class="flex-shrink-0 mt-0.5" />
+              <div>
+                <p class="text-sm font-black text-gray-700">Activity Richness</p>
+                <p class="text-xs text-gray-500">Lots to explore: many tasks. Some things: reasonable options. Limited: fewer exploration points.</p>
+              </div>
+            </div>
+          </div>
+          <div class="ob-footer">
+            <span class="text-xs font-bold text-gray-400">3 / 3</span>
+            <button class="ob-next-btn" @click.stop="nextOnboardingStep">Got it!</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
     <div v-if="showModal"
       class="fixed inset-0 flex items-end justify-center z-50"
       style="background: rgba(0,0,0,0.4)"
@@ -346,9 +335,6 @@
       </div>
     </div>
 
-    <!-- Backdrop -->
-    <div v-if="showSeriesDropdown" class="fixed inset-0 z-10" @click="showSeriesDropdown = false" />
-
   </div>
 </template>
 
@@ -358,14 +344,14 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
-import { useProgressStore, loadDailyTasks, saveDailyTasks, loadDailySeriesTasks, saveDailySeriesTasks } from '../stores/progress'
+import { useProgressStore, loadDailyTasks, saveDailyTasks } from '../stores/progress'
 import { trackEvent } from '../services/analytics'
 import {
-  PhSun, PhCloud, PhCloudRain, PhPawPrint, PhCompass, PhLightning,
+  PhSun, PhCloud, PhCloudRain, PhPawPrint, PhLightning,
   PhTarget, PhCheckCircle, PhXCircle, PhNavigationArrow,
-  PhCamera, PhShuffle, PhStarFour, PhArrowsClockwise, PhSpinner,
-  PhTree, PhBuildings, PhPaintBrush, PhCheck, PhCaretDown,
-  PhMapPin, PhWarning
+  PhCamera, PhArrowsClockwise, PhSpinner,
+  PhTree, PhMapPin, PhWarning, PhBus, PhFlower,
+  PhInfo
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -376,13 +362,8 @@ const progressStore = useProgressStore()
 const router = useRouter()
 const userName = authStore.user?.nickname || 'Explorer'
 
-const mode = ref('random')
-const showSeriesDropdown = ref(false)
-const selectedSeriesId = ref(null)
 const randomTasks = ref([])
-const seriesTasks = ref([])
 const loadingTasks = ref(false)
-const loadingSeriesTasks = ref(false)
 const showModal = ref(false)
 const selectedTask = ref(null)
 const fileInput = ref(null)
@@ -392,8 +373,12 @@ const evalResult = ref(null)
 
 // Location verification state
 const PROXIMITY_RADIUS = 200 // meters
-const locationStatus = ref('checking') // 'checking' | 'in_range' | 'out_of_range' | 'error'
+const locationStatus = ref('checking')
 const locationMessage = ref('Checking your location...')
+
+// Recommended parks (no-route parks)
+const recParks = ref([])
+const recParksLoading = ref(false)
 
 const canTakePhoto = computed(() => {
   if (selectedTask.value?.latitude == null) return true
@@ -404,46 +389,84 @@ const completedRandomCount = computed(() =>
   randomTasks.value.filter(t => t.done).length
 )
 
-const completedSeriesCount = computed(() =>
-  seriesTasks.value.filter(t => t.done).length
-)
+// ─── Onboarding ──────────────────────────────────────────────
+const ONBOARDING_KEY = 'snaphunter_home_onboarded'
+const showOnboarding = ref(false)
+const onboardingStep = ref(0)
 
-const seriesList = [
-  {
-    id: 1,
-    name: 'Nature Series',
-    description: 'Explore the natural world',
-    icon: PhTree,
-    color: '#16a34a',
-    iconBg: '#f0fdf4',
-    borderColor: '#bbf7d0',
-    borderBottomColor: '#34d399',
-  },
-  {
-    id: 2,
-    name: 'Urban Series',
-    description: 'Discover your city',
-    icon: PhBuildings,
-    color: '#3b82f6',
-    iconBg: '#eff6ff',
-    borderColor: '#bfdbfe',
-    borderBottomColor: '#93c5fd',
-  },
-  {
-    id: 3,
-    name: 'Art Series',
-    description: 'Find beauty everywhere',
-    icon: PhPaintBrush,
-    color: '#a855f7',
-    iconBg: '#faf5ff',
-    borderColor: '#e9d5ff',
-    borderBottomColor: '#d8b4fe',
-  },
+const onboardingSteps = [
+  { id: 'mission' },
+  { id: 'parks' },
+  { id: 'tags' },
 ]
 
-const currentSeries = computed(() =>
-  seriesList.find(s => s.id === selectedSeriesId.value)
-)
+const onboardingTooltipStyle = computed(() => '')
+
+function nextOnboardingStep() {
+  if (onboardingStep.value < onboardingSteps.length - 1) {
+    onboardingStep.value++
+  } else {
+    showOnboarding.value = false
+    localStorage.setItem(ONBOARDING_KEY, 'true')
+  }
+}
+
+function checkOnboarding() {
+  if (!localStorage.getItem(ONBOARDING_KEY)) {
+    showOnboarding.value = true
+    onboardingStep.value = 0
+  }
+}
+
+// ─── Recommended parks ───────────────────────────────────────
+
+function formatDistM(m) {
+  if (m == null) return ''
+  return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`
+}
+
+function sizeTagStyle(parkHa) {
+  if (!parkHa) return 'background:#f1f5f9;color:#64748b'
+  if (parkHa.toLowerCase().includes('large')) return 'background:#dbeafe;color:#1d4ed8'
+  if (parkHa.toLowerCase().includes('medium')) return 'background:#e0e7ff;color:#4338ca'
+  return 'background:#f1f5f9;color:#64748b'
+}
+
+function accessTagStyle(access) {
+  if (!access) return 'background:#f1f5f9;color:#64748b'
+  if (access.toLowerCase().includes('high')) return 'background:#dcfce7;color:#15803d'
+  if (access.toLowerCase().includes('medium')) return 'background:#fef9c3;color:#a16207'
+  return 'background:#fef2f2;color:#b91c1c'
+}
+
+function richnessTagStyle(richness) {
+  if (!richness) return 'background:#f1f5f9;color:#64748b'
+  if (richness.toLowerCase().includes('high')) return 'background:#fce7f3;color:#be185d'
+  if (richness.toLowerCase().includes('medium')) return 'background:#fff7ed;color:#c2410c'
+  return 'background:#f5f5f4;color:#78716c'
+}
+
+async function fetchRecommendedParks(force = false) {
+  recParksLoading.value = true
+  try {
+    // Get user location first
+    const pos = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 10000 })
+    })
+    const res = await axios.get(`${BASE_URL}/api/common-parks`, {
+      params: {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        random: force,
+      }
+    })
+    recParks.value = res.data || []
+  } catch (e) {
+    console.error('Failed to fetch recommended parks:', e)
+  } finally {
+    recParksLoading.value = false
+  }
+}
 
 // ─── Daily task persistence ─────────────────────────────────
 
@@ -474,58 +497,9 @@ function handleRefresh() {
   fetchRandomTasks()
 }
 
-function handleSeriesRefresh() {
-  if (!selectedSeriesId.value) return
+function handleRecParkRefresh() {
   if (!progressStore.useRefresh()) return
-  fetchSeriesTasks(selectedSeriesId.value)
-}
-
-async function fetchSeriesTasks(seriesId) {
-  loadingSeriesTasks.value = true
-  try {
-    const res = await axios.get(`${BASE_URL}/api/tasks/series/random`, {
-      params: { seriesId }
-    })
-    seriesTasks.value = res.data.map(t => ({ ...t, done: false }))
-    saveDailySeriesTasks(seriesId, seriesTasks.value)
-  } catch (e) {
-    console.error('Failed to fetch series tasks:', e)
-  } finally {
-    loadingSeriesTasks.value = false
-  }
-}
-
-async function loadOrFetchSeriesTasks(seriesId) {
-  const cached = loadDailySeriesTasks(seriesId)
-  if (cached && cached.length > 0) {
-    seriesTasks.value = cached
-  } else {
-    await fetchSeriesTasks(seriesId)
-  }
-}
-
-// ─── Mode switching ─────────────────────────────────────────
-
-function switchMode(newMode) {
-  if (newMode === 'series') {
-    if (mode.value === 'series') {
-      showSeriesDropdown.value = !showSeriesDropdown.value
-    } else {
-      mode.value = 'series'
-      showSeriesDropdown.value = true
-    }
-  } else {
-    mode.value = 'random'
-    showSeriesDropdown.value = false
-    selectedSeriesId.value = null
-    seriesTasks.value = []
-  }
-}
-
-function selectSeries(id) {
-  selectedSeriesId.value = id
-  showSeriesDropdown.value = false
-  loadOrFetchSeriesTasks(id)
+  fetchRecommendedParks(true)
 }
 
 // ─── Location verification ─────────────────────────────────
@@ -630,31 +604,13 @@ async function handlePhotoCapture(event) {
 
 function handleCompleteTask() {
   const task = randomTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
-    || seriesTasks.value.find(t => t.taskId === selectedTask.value?.taskId)
   if (task) {
     task.done = true
-
-    // Update progress store
     progressStore.completeTask(task.rewardPoint || 10)
-
-    // Check sunny day badge
     if (weather.desc === 'Clear sky') {
       progressStore.completeSunnyTask()
     }
-
-    // Check series completion
-    if (selectedSeriesId.value) {
-      const allDone = seriesTasks.value.every(t => t.done)
-      if (allDone) {
-        const seriesKey = selectedSeriesId.value === 1 ? 'nature'
-          : selectedSeriesId.value === 2 ? 'urban' : 'art'
-        progressStore.earnBadge(seriesKey)
-      }
-      saveDailySeriesTasks(selectedSeriesId.value, seriesTasks.value)
-    } else {
-      saveDailyTasks(randomTasks.value)
-    }
-
+    saveDailyTasks(randomTasks.value)
     trackEvent('task_complete', {
       taskId: task.taskId,
       taskName: task.taskName,
@@ -672,7 +628,7 @@ function goNavigate(task) {
       navLat: String(task.latitude),
       navLng: String(task.longitude),
       navName: task.taskName,
-      navId: `task-${task.taskId}`,
+      navId: task.taskId ? `task-${task.taskId}` : `park-${task.taskName}`,
     }
   })
 }
@@ -681,5 +637,78 @@ onMounted(() => {
   progressStore.init()
   if (!weather.temp) weather.fetchWeather()
   loadOrFetchRandomTasks()
+  fetchRecommendedParks()
+  checkOnboarding()
 })
 </script>
+<style>
+.rec-park-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+.ob-card {
+  position: absolute;
+  width: calc(100% - 32px);
+  max-width: 360px;
+  padding: 20px;
+  border-radius: 24px;
+  background: white;
+  border: 2px solid #d1fae5;
+  border-bottom: 4px solid #34d399;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  z-index: 1000;
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+.ob-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px
+}
+
+.ob-next-btn {
+  padding: 8px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-bottom: 3px solid #047857;
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+.ob-arrow-up {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 10px solid white
+}
+
+.ob-arrow-down {
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid white
+}
+</style>
