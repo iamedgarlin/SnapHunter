@@ -35,4 +35,12 @@ public class ParkController {
     ) {
         return ResponseEntity.ok(parkService.getParksWithoutStoriesForRecommendation(latitude, longitude, random));
     }
+
+    @GetMapping("/common-route-parks")
+    public ResponseEntity<List<ParkRecommendationDTO>> getParkWithRoutes(
+        @RequestParam Double latitude,
+        @RequestParam Double longitude
+    ) {
+        return ResponseEntity.ok(parkService.getParksWithRoutesForRecommendation(latitude, longitude));
+    }
 }

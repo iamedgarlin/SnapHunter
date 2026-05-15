@@ -62,6 +62,35 @@ public class ParkService {
         return parks;
     }
 
+    public List<ParkRecommendationDTO> getParksWithRoutesForRecommendation(
+        Double userLatitude, 
+        Double userLongitude
+        ) {
+        Integer weatherLevel = calculateWeatherLevel(userLatitude, userLongitude);
+
+        if (weatherLevel == null) {
+            return List.of();
+        }
+        
+        List<ParkRecommendationDTO> parks = 
+                parkRepository.findParksWithRoutesForRecommendation(
+                    userLatitude, 
+                    userLongitude, 
+                    weatherLevel);
+        for (ParkRecommendationDTO park : parks) {
+            park.setTransportAccessibility(
+                    convertTransportAccessibility(park.getTransportAccessibilityScore())
+            );
+            park.setTaskRichness(
+                    convertTaskRichness(park.getTaskRichnessScore())
+            );
+            park.setParkHa(
+                    convertParkHaLevel(park.getParkHaLevel())
+            );
+        }
+        return parks;
+    } 
+
     private String convertTaskRichness(Double score) {
         if (score >= 7.50) {
             return "High richness";
