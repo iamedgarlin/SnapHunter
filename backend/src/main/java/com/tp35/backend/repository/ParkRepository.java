@@ -66,15 +66,17 @@ public class ParkRepository {
                     ST_Distance_Sphere(
                         p.st_point,
                         ST_SRID(POINT(?, ?), 4326)
-                    ) AS distance,
-                    (SELECT COUNT(*) FROM route r
-                    WHERE r.park_id = p.park_id
-                    ) AS route_count
+                    ) AS distance
                 FROM park p
                 WHERE NOT EXISTS (
                     SELECT 1
                     FROM story s
                     WHERE s.park_id = p.park_id
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM route r
+                    WHERE r.park_id = p.park_id
                 )
                 AND p.min_weather_accept_level <= ?
             )
@@ -87,11 +89,10 @@ public class ParkRepository {
                 task_richness_score,
                 park_ha_level,
                 recommend_description,
-                distance,
-                route_count
+                distance
             FROM t
             """ + orderBy + """
-            LIMIT 5
+            LIMIT 3
             """;
 
         return jdbcTemplate.query(sql, (rs, rowNum) -> {
@@ -106,7 +107,6 @@ public class ParkRepository {
             park.setTaskRichnessScore(rs.getDouble("task_richness_score"));
             park.setParkHaLevel(rs.getDouble("park_ha_level"));
             park.setDistance(rs.getDouble("distance"));
-            park.setRouteCount(rs.getInt("route_count"));
             return park;
         }, userLongitude, userLatitude, weatherLevel);
     }
