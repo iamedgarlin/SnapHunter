@@ -19,7 +19,7 @@ task_files = [
     Path("park_feature_join_tree_flower.csv"),
     Path("park_feature_join_artwork_landmark.csv"),
 ]
-task_id_mapping_file = Path("task_202605131503.csv")
+task_id_mapping_file = Path("task_202605131503.csv") # Exported from database with task_id, task_name, latitude, longitude for matching source tasks to database IDs.
 
 wgs84_crs = "EPSG:4326"
 projected_crs = "EPSG:7855"
@@ -72,9 +72,9 @@ def load_entrances() -> Any:
     entrances = gpd.read_file(entrances_file).to_crs(wgs84_crs)
     return entrances
 
-
+# Load task points, tasks are used for scoring and route_task table. 
+# Route won't directly navigate to tasks but will try to get close to them.
 def load_task_points() -> Any:
-    # Tasks are used for scoring and route_task rows. They are not route waypoints.
     frames = []
     for path in task_files:
         if not path.exists():
@@ -100,7 +100,8 @@ def load_task_points() -> Any:
         crs=wgs84_crs,
     )
 
-
+# Group nearby tasks into clusters for route scoring to prevet tasks are too close and route score is dominated by one small area. 
+# Each task can only belong to one cluster
 def build_task_clusters_for_park(park: Any, tasks: Any) -> list[dict[str, Any]]:
     """Group nearby tasks once so planner and preview use the same clusters."""
     if tasks.empty or "park_id" not in tasks.columns:
