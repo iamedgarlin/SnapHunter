@@ -1,9 +1,8 @@
 """
 Route planning logic for SnapHunter preset park routes.
 
-Routes are generated from the internal OSM walking graph only. Task clusters are
-attached after route generation for scoring and SQL route_task output; they are
-not used as route waypoints.
+Routes are generated from the internal OSM walking graph. Task clusters are
+attached after route generation for scoring.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ max_overlap_m = 180
 max_backtrack_ratio = 0.2
 max_selected_edge_jaccard = 0.72
 
-# Nearby task clusters affect score and final difficulty, not path geometry.
+# Nearby task clusters affect score and final difficulty.
 dead_end_task_context_distance_m = 500
 task_score_full_distance_m = 30
 task_score_max_distance_m = 50
@@ -63,7 +62,7 @@ class DifficultySpec:
 
 
 difficulty_specs = [
-    DifficultySpec("Easy", 330, 600),
+    DifficultySpec("Easy", 250, 600),
     DifficultySpec("Medium", 600, 850),
     DifficultySpec("Adventure", 850, 1200),
 ]
@@ -83,7 +82,7 @@ class CRSHelper:
     def unproject_line(self, line: LineString) -> LineString:
         return LineString([self.to_wgs84.transform(x, y) for x, y in line.coords])
 
-
+# Main functions for building routes for parks, including graph construction, candidate generation, and scoring.
 def build_routes_for_parks(
     parks: Any,
     roads: Any,
@@ -142,7 +141,7 @@ def build_routes_for_parks(
 
     return gpd.GeoDataFrame(rows, geometry="geometry", crs=wgs84_crs)
 
-
+# Load internal OSM roads for a park, which are used for route generation.
 def get_internal_roads_for_park(roads: Any, park: Any) -> Any:
     park_id = int(park["park_id"])
     return roads[
@@ -202,7 +201,7 @@ def node_key(coord: tuple[float, float]) -> tuple[float, float]:
         round(float(coord[1]) / node_rounding_m) * node_rounding_m,
     )
 
-
+# Load gate/entrance points for candidate route start locations.
 def build_start_candidates(
     park: Any,
     entrances: Any,
@@ -230,7 +229,7 @@ def build_start_candidates(
 
     return build_virtual_boundary_candidates(park, graph, node_points)[:max_start_nodes]
 
-
+# Find the nearest graph node to the entrance point for candidate generation. 
 def nearest_gate_candidate(
     entrance: Any,
     nodes: list[Any],
@@ -248,7 +247,8 @@ def nearest_gate_candidate(
         "distance_to_node_m": round(projected.distance(best_point), 1),
     }
 
-
+# If not enough real gates/entrances, add virtual candidates along the park boundary 
+# which are close to boundary and well connected in the path graph. 
 def build_virtual_boundary_candidates(park: Any, graph: Any, node_points: dict[Any, Point]) -> list[dict[str, Any]]:
     boundary = gpd.GeoSeries([park.geometry], crs=wgs84_crs).to_crs(projected_crs).iloc[0].boundary
     rows = []
@@ -293,7 +293,7 @@ def candidate_source_summary(candidates: list[dict[str, Any]]) -> str:
     counts = pd.Series([candidate["source"] for candidate in candidates]).value_counts()
     return ", ".join(f"{source}={count}" for source, count in counts.items())
 
-
+# Generate candidate routes from the graph, then attach nearby task clusters for scoring.
 def generate_route_candidates(
     graph: Any,
     node_points: dict[Any, Point],
@@ -302,7 +302,7 @@ def generate_route_candidates(
     starts: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     candidates = []
-    # Candidate routes come only from graph paths, never straight task-to-task lines.
+    # Candidate routes come only from graph paths, don't directly connect tasks.
     if len(starts) >= 2:
         for start, end in itertools.combinations(starts, 2):
             candidates.extend(generate_entrance_to_entrance_candidates(
@@ -312,7 +312,7 @@ def generate_route_candidates(
         candidates.extend(generate_loop_candidates(graph, node_points, transformer, task_clusters, start))
     return candidates
 
-
+# Choose two gates/entrances as start/end candidates, prepare for entrance and leave from different gates
 def generate_entrance_to_entrance_candidates(
     graph: Any,
     node_points: dict[Any, Point],
@@ -337,7 +337,7 @@ def generate_entrance_to_entrance_candidates(
             rows.append(route)
     return rows
 
-
+# If not enough gates allow for one gate loops.
 def generate_loop_candidates(
     graph: Any,
     node_points: dict[Any, Point],
@@ -451,7 +451,7 @@ def build_candidate_from_path(
 def path_weight_allowing_cycle(graph: Any, path_nodes: list[Any]) -> float:
     return sum(graph[a][b]["weight"] for a, b in zip(path_nodes, path_nodes[1:]))
 
-
+# Prevent those edge candidates which are too similar.
 def route_overlap_metrics(graph: Any, path_nodes: list[Any]) -> dict[str, float]:
     seen = set()
     overlap_m = 0.0
@@ -469,7 +469,7 @@ def route_overlap_metrics(graph: Any, path_nodes: list[Any]) -> dict[str, float]
         "overlap_ratio": round(overlap_m / total_m, 4) if total_m else 0.0,
     }
 
-
+# Prevent routes that go back and forth over the same edge.
 def route_backtrack_metrics(graph: Any, path_nodes: list[Any]) -> dict[str, Any]:
     directed_counts = {}
     edge_lengths = {}
@@ -512,7 +512,7 @@ def route_edge_set(path_nodes: list[Any]) -> set[Any]:
 def route_uses_dead_end_branch(graph: Any, path_nodes: list[Any]) -> bool:
     return any(graph.degree[node] == 1 for node in path_nodes[1:-1])
 
-
+# Find task clusters that are near the route for scoring.
 def clusters_near_route(
     projected_line: LineString,
     task_clusters: list[dict[str, Any]],
@@ -607,7 +607,7 @@ def select_best_routes(candidates: list[dict[str, Any]]) -> list[dict[str, Any]]
         selected.append(best)
     return adjust_selected_route_difficulties(selected)
 
-
+# After selecting the best route for each difficulty, adjust displayed difficulty based on task score to prevent just base on distance.
 def adjust_selected_route_difficulties(selected: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not selected:
         return selected
@@ -703,41 +703,21 @@ def build_route_row(park: Any, route: dict[str, Any]) -> dict[str, Any]:
     route_name = f"{park['park_name']} {route['difficulty']} preset route"
     return {
         "route_id": route_id,
-        "park_id": int(park["park_id"]),
-        "park_name": str(park["park_name"]),
         "route_name": route_name,
-        "difficulty": route["difficulty"],
+        "park_id": int(park["park_id"]),
+        "park_name": park["park_name"],
         "base_difficulty": route["base_difficulty"],
-        "difficulty_adjusted_by_task_score": route["difficulty_adjusted_by_task_score"],
-        "task_difficulty_adjustment": route["task_difficulty_adjustment"],
-        "candidate_type": route["candidate_type"],
-        "total_distance_m": route["distance_m"],
+        "difficulty": route["difficulty"],
         "walking_time_sec": route["walking_time_sec"],
         "route_score": route["route_score"],
-        "distance_fit_score": route["distance_fit_score"],
         "distance_score": route["distance_score"],
-        "coverage_score": route["coverage_score"],
+        "total_distance_m": route["distance_m"],
         "task_score": route["task_score"],
-        "task_cluster_score_units": route["task_cluster_score_units"],
-        "backtrack_penalty": route["backtrack_penalty"],
         "nearby_task_cluster_count": route["nearby_task_cluster_count"],
         "nearby_task_count": route["nearby_task_count"],
-        "nearby_task_cluster_ids": ",".join(route["nearby_task_cluster_ids"]),
-        "nearby_task_cluster_details": route["nearby_task_cluster_details"],
         "route_task_rows": route["route_task_rows"],
         "start_gate_name": route["start"]["name"],
         "start_gate_source": route["start"]["source"],
-        "start_gate_id": route["start"].get("source_id"),
-        "end_gate_name": route["end"]["name"],
-        "end_gate_source": route["end"]["source"],
-        "end_gate_id": route["end"].get("source_id"),
-        "path_node_count": route["path_node_count"],
-        "has_repeated_nodes": route["has_repeated_nodes"],
-        "overlap_m": route["overlap_m"],
-        "overlap_ratio": route["overlap_ratio"],
-        "backtrack_m": route["backtrack_m"],
-        "backtrack_ratio": route["backtrack_ratio"],
-        "is_active": True,
         "geometry": route["geometry"],
     }
 
@@ -756,7 +736,6 @@ def print_summary(routes: Any) -> None:
         "base_difficulty",
         "total_distance_m",
         "walking_time_sec",
-        "backtrack_ratio",
         "nearby_task_cluster_count",
         "task_score",
         "route_score",
