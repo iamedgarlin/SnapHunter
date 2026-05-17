@@ -97,25 +97,30 @@
           </div>
         </div>
 
-      <!-- ═══ Recommended Parks (no-route parks) ═══ -->
+      <!-- ═══ Today's Park (no-route parks) ═══ -->
       <div class="card-game" style="border-color: #d1fae5; border-bottom-color: #6ee7b7">
         <div class="flex items-center justify-between mb-3">
           <div class="flex items-center gap-1.5">
             <PhTree :size="18" weight="duotone" color="#10b981" />
-            <p class="text-base font-black text-gray-800">Recommended Parks</p>
+            <p class="text-base font-black text-gray-800">Today's Park</p>
           </div>
-          <div class="flex items-center gap-1">
-            <button @click="handleRecParkRefresh"
-              class="w-7 h-7 rounded-xl flex items-center justify-center relative"
-              :style="progressStore.refreshesLeftToday > 0
-                ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
-                : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
-              :disabled="progressStore.refreshesLeftToday <= 0">
-              <PhArrowsClockwise :size="14" weight="duotone"
-                :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'"
-                :class="recParksLoading ? 'animate-spin' : ''" />
-            </button>
-            <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3</span>
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-black text-emerald-700 bg-emerald-100 rounded-xl px-2 py-1">
+              {{ progressStore.parksVisitedTodayCount }}/3 done
+            </span>
+            <div class="flex items-center gap-1">
+              <button @click="handleRecParkRefresh"
+                class="w-7 h-7 rounded-xl flex items-center justify-center relative"
+                :style="progressStore.refreshesLeftToday > 0
+                  ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
+                  : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
+                :disabled="progressStore.refreshesLeftToday <= 0">
+                <PhArrowsClockwise :size="14" weight="duotone"
+                  :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'"
+                  :class="recParksLoading ? 'animate-spin' : ''" />
+              </button>
+              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3 rerolls</span>
+            </div>
           </div>
         </div>
         <div v-if="recParksLoading && !recParks.length" class="flex items-center justify-center py-6 gap-2">
@@ -130,7 +135,7 @@
           <div v-for="rp in recParks" :key="rp.parkId"
             class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
             style="background: #f8fafc; border: 2px solid #e2e8f0"
-            @click="goNavigate({ latitude: rp.latitude, longitude: rp.longitude, taskName: rp.parkName })">
+            @click="goNavigatePark(rp)">
             <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
               style="background:#ecfdf5;border:2px solid #a7f3d0;border-bottom:3px solid #6ee7b7">
               <PhTree :size="20" weight="duotone" color="#059669" />
@@ -155,11 +160,17 @@
                 </span>
               </div>
             </div>
-            <button class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-              style="background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #86efac"
-              @click.stop="goNavigate({ latitude: rp.latitude, longitude: rp.longitude, taskName: rp.parkName })">
-              <PhNavigationArrow :size="14" weight="duotone" color="#10b981" />
-            </button>
+            <div class="flex items-center gap-1.5 flex-shrink-0">
+              <div class="flex items-center gap-0.5">
+                <PhLightning :size="12" weight="duotone" color="#f59e0b" />
+                <span class="text-xs font-black text-amber-500">+50</span>
+              </div>
+              <button class="w-8 h-8 rounded-xl flex items-center justify-center"
+                style="background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #86efac"
+                @click.stop="goNavigatePark(rp)">
+                <PhNavigationArrow :size="14" weight="duotone" color="#10b981" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -195,11 +206,11 @@
           </div>
         </div>
 
-        <!-- Step 2: Recommended Parks -->
+        <!-- Step 2: Today's Park -->
         <div v-if="onboardingStep === 1" class="ob-card" style="bottom: 22%; left: 50%; transform: translateX(-50%);">
           <div class="flex items-center gap-2 mb-2">
             <PhTree :size="20" weight="duotone" color="#10b981" />
-            <p class="text-base font-black text-gray-800">Recommended Parks</p>
+            <p class="text-base font-black text-gray-800">Today's Park</p>
           </div>
           <p class="text-sm text-gray-600 leading-relaxed">
             Scroll down to find nearby parks. Tap a park to navigate there. Each park has tags showing useful info.
@@ -344,7 +355,7 @@ import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
-import { useProgressStore, loadDailyTasks, saveDailyTasks } from '../stores/progress'
+import { useProgressStore, loadDailyTasks, saveDailyTasks, loadDailyParks, saveDailyParks } from '../stores/progress'
 import { trackEvent } from '../services/analytics'
 import {
   PhSun, PhCloud, PhCloudRain, PhPawPrint, PhLightning,
@@ -461,10 +472,23 @@ async function fetchRecommendedParks(force = false) {
       }
     })
     recParks.value = res.data || []
+    saveDailyParks(recParks.value)
   } catch (e) {
     console.error('Failed to fetch recommended parks:', e)
   } finally {
     recParksLoading.value = false
+  }
+}
+
+// Same daily-persistence model as Today's Mission: use the cached
+// list for the rest of the day, only re-fetch when the day rolls
+// over (00:00) or the user spends a reroll.
+async function loadOrFetchRecommendedParks() {
+  const cached = loadDailyParks()
+  if (cached && cached.length > 0) {
+    recParks.value = cached
+  } else {
+    await fetchRecommendedParks()
   }
 }
 
@@ -633,11 +657,28 @@ function goNavigate(task) {
   })
 }
 
+function goNavigatePark(rp) {
+  if (rp.latitude == null || rp.longitude == null) return
+  // NOTE: tapping Navigate is only intent, not an actual visit. The park
+  // is marked visited later by the map's GPS arrival check, so we do NOT
+  // record a visit here (doing so wrongly flipped parks to "visited").
+  trackEvent('park_navigate', { parkId: rp.parkId, parkName: rp.parkName })
+  router.push({
+    path: '/map',
+    query: {
+      navLat: String(rp.latitude),
+      navLng: String(rp.longitude),
+      navName: rp.parkName,
+      navId: `park-${rp.parkId}`,
+    }
+  })
+}
+
 onMounted(() => {
   progressStore.init()
   if (!weather.temp) weather.fetchWeather()
   loadOrFetchRandomTasks()
-  fetchRecommendedParks()
+  loadOrFetchRecommendedParks()
   checkOnboarding()
 })
 </script>

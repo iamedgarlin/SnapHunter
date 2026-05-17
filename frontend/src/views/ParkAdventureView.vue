@@ -182,22 +182,24 @@
 
                     <!-- Sensor task UI -->
                     <div v-else class="sensor-task-ui">
-                        <div class="sensor-meter">
-                            <div class="sensor-meter-fill"
-                                :style="`width: ${sensorProgress * 100}%; background: ${taskTypeColor(currentWp.taskType)}`" />
-                        </div>
-                        <div class="sensor-stats">
-                            <span class="text-sm font-black" :style="`color: ${taskTypeColor(currentWp.taskType)}`">
-                                {{ sensorDisplayValue }}
-                            </span>
-                            <span class="text-xs font-bold text-gray-400">{{ sensorDisplayUnit }}</span>
+                        <div class="sensor-meter-row">
+                            <div class="sensor-meter">
+                                <div class="sensor-meter-fill"
+                                    :style="`width: ${sensorProgress * 100}%; background: ${taskTypeColor(currentWp.taskType)}`" />
+                            </div>
+                            <div class="sensor-stats">
+                                <span class="text-sm font-black" :style="`color: ${taskTypeColor(currentWp.taskType)}`">
+                                    {{ sensorDisplayValue }}
+                                </span>
+                                <span class="text-xs font-bold text-gray-400">{{ sensorDisplayUnit }}</span>
+                            </div>
                         </div>
                         <button v-if="!sensorStarted" class="btn-game sensor-btn"
                             :style="sensorBtnBg(currentWp.taskType)" @click="startSensor">
                             <PhPlay :size="14" weight="fill" color="white" />
                             Start
                         </button>
-                        <p v-else class="text-xs font-bold" :style="`color: ${taskTypeColor(currentWp.taskType)}`">
+                        <p v-else class="sensor-hint-text" :style="`color: ${taskTypeColor(currentWp.taskType)}`">
                             {{ sensorHint }}
                         </p>
                     </div>
@@ -277,6 +279,10 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProgressStore } from '../stores/progress'
+import {
+    saveAdventureProgress, loadAdventureProgress,
+    loadLatestAdventureForPark, clearAdventureProgress,
+} from '../stores/progress'
 import { useShake, useSpin, useSky, useStep } from '../composables/useSensors'
 import { trackEvent } from '../services/analytics'
 import axios from 'axios'
@@ -341,6 +347,12 @@ let pathLayers = []
 let geoWatchId = null
 const userPos = ref(null)
 
+// Once the user reaches a waypoint we "latch" arrival so the task UI
+// (photo preview / "Checking photo..." / result / sensor) stays mounted
+// even if GPS jitter or a debug teleport later moves userPos away.
+// Reset to false whenever we advance to a new waypoint.
+const arrivalLatched = ref(false)
+
 // Task state
 const sensorStarted = ref(false)
 const sensorProgress = ref(0)
@@ -370,6 +382,9 @@ const progressPercent = computed(() => {
 })
 
 const arrivedAtWaypoint = computed(() => {
+    // Stay "arrived" once latched, so the photo / checking / result UI
+    // does not disappear mid-flow due to GPS updates.
+    if (arrivalLatched.value) return true
     if (!currentWp.value || !userPos.value) return false
     const d = haversineM(userPos.value.lat, userPos.value.lng, currentWp.value.latitude, currentWp.value.longitude)
     return d <= ARRIVE_RADIUS
@@ -379,6 +394,28 @@ const distToWaypoint = computed(() => {
     if (!currentWp.value || !userPos.value) return '...'
     const d = haversineM(userPos.value.lat, userPos.value.lng, currentWp.value.latitude, currentWp.value.longitude)
     return d < 1000 ? `${Math.round(d)}m` : `${(d / 1000).toFixed(1)}km`
+})
+
+// Latch arrival the moment the user genuinely enters the waypoint radius.
+// After this, GPS updates can't kick them back out of the task UI.
+let parkVisitRecorded = false
+watch(userPos, () => {
+    if (arrivalLatched.value) return
+    if (!currentWp.value || !userPos.value) return
+    const d = haversineM(userPos.value.lat, userPos.value.lng, currentWp.value.latitude, currentWp.value.longitude)
+    if (d <= ARRIVE_RADIUS) {
+        arrivalLatched.value = true
+        // First real arrival inside this park = a genuine visit. Record
+        // it once (shared with Home "x/3 done" + Tasks "Parks Series" +
+        // map gray->green pins).
+        if (!parkVisitRecorded && parkId.value) {
+            parkVisitRecorded = true
+            progressStore.recordParkVisit({
+                parkId: parkId.value,
+                parkName: parkName.value,
+            })
+        }
+    }
 })
 
 // ─── Sensor task types (cycle through for variety) ───────────
@@ -556,6 +593,27 @@ async function fetchRouteDetail(routeId) {
 // ─── Route selection ────────────────────────────────────────
 async function selectRoute(r) {
     selectedRoute.value = r
+
+    // Try to restore a previously saved (unfinished) run of this exact trail
+    const saved = loadAdventureProgress(parkId.value, r.routeId)
+    if (saved && Array.isArray(saved.waypoints) && saved.waypoints.length
+        && !saved.waypoints.every(w => w.completed)) {
+        waypoints.value = saved.waypoints
+        pathSegments.value = saved.pathSegments || []
+        currentWpIndex.value = Math.min(saved.currentWpIndex || 0, saved.waypoints.length - 1)
+        earnedXp.value = saved.earnedXp || 0
+        sensorStarted.value = false
+        arrivalLatched.value = false
+        phase.value = 'active'
+
+        await nextTick()
+        initMap()
+        startGeoWatch()
+        checkActiveOb()
+        trackEvent('adventure_resume', { parkId: parkId.value, routeId: r.routeId, difficulty: r.difficulty })
+        return
+    }
+
     const detail = await fetchRouteDetail(r.routeId)
     if (!detail || !detail.waypoints?.length) return
 
@@ -564,13 +622,38 @@ async function selectRoute(r) {
     currentWpIndex.value = 0
     earnedXp.value = 0
     sensorStarted.value = false
+    arrivalLatched.value = false
     phase.value = 'active'
+
+    // NOTE: selecting a route is intent, not arrival. The park visit is
+    // recorded only when the user physically reaches the first waypoint
+    // (GPS-verified) — see the userPos watcher above.
 
     await nextTick()
     initMap()
     startGeoWatch()
     checkActiveOb()
+    persistAdventure()
     trackEvent('adventure_start', { parkId: parkId.value, routeId: r.routeId, difficulty: r.difficulty })
+}
+
+// ─── Progress persistence ───────────────────────────────────
+function persistAdventure() {
+    if (!selectedRoute.value) return
+    if (allDone.value) {
+        // Trail finished — no need to keep saved state around
+        clearAdventureProgress(parkId.value, selectedRoute.value.routeId)
+        return
+    }
+    saveAdventureProgress(parkId.value, selectedRoute.value.routeId, {
+        parkName: parkName.value,
+        difficulty: selectedRoute.value.difficulty,
+        routeName: selectedRoute.value.routeName,
+        waypoints: waypoints.value,
+        pathSegments: pathSegments.value,
+        currentWpIndex: currentWpIndex.value,
+        earnedXp: earnedXp.value,
+    })
 }
 
 // ─── Map ────────────────────────────────────────────────────
@@ -641,6 +724,16 @@ function teleportToWaypoint() {
     if (!wp) return
     // Simulate arriving at the current waypoint
     userPos.value = { lat: wp.latitude, lng: wp.longitude }
+    arrivalLatched.value = true
+    // Debug teleport simulates a real arrival, so record the visit once
+    // too — keeps testing consistent with the GPS arrival path.
+    if (!parkVisitRecorded && parkId.value) {
+        parkVisitRecorded = true
+        progressStore.recordParkVisit({
+            parkId: parkId.value,
+            parkName: parkName.value,
+        })
+    }
     if (advMap) {
         if (!userMarker) {
             userMarker = L.marker([wp.latitude, wp.longitude], {
@@ -701,10 +794,12 @@ function completeCurrentTask() {
     trackEvent('adventure_task_complete', { parkId: parkId.value, taskType: wp.taskType, waypointId: wp.waypointId })
 
     if (waypoints.value.every(w => w.completed)) {
+        clearAdventureProgress(parkId.value, selectedRoute.value?.routeId)
         trackEvent('adventure_complete', { parkId: parkId.value, routeId: selectedRoute.value?.routeId, totalXp: earnedXp.value })
         return
     }
 
+    persistAdventure()
     startEyeRest()
 }
 
@@ -813,20 +908,33 @@ function advanceWaypoint() {
     evalResult.value = null
     if (currentWpIndex.value < waypoints.value.length - 1) {
         currentWpIndex.value++
+        arrivalLatched.value = false
         sensorStarted.value = false
         sensorProgress.value = 0
         sensorDisplayValue.value = '0'
         refreshWaypointMarkers()
         const wp = currentWp.value
         if (wp && advMap) advMap.setView([wp.latitude, wp.longitude], 17)
+        persistAdventure()
     }
 }
 
 // ─── Navigation ─────────────────────────────────────────────
-function goBack() { cleanup(); router.push('/map') }
+function goBack() {
+    // Make sure the latest state is saved before leaving so the
+    // user can resume this trail later.
+    if (selectedRoute.value && !allDone.value
+        && waypoints.value.some(w => w.completed)) {
+        persistAdventure()
+    }
+    cleanup()
+    router.push('/map')
+}
 function confirmExit() {
     if (waypoints.value.some(w => w.completed) && !allDone.value) {
-        if (confirm('Leave this trail? Progress will be lost.')) goBack()
+        if (confirm("Leave this trail? Your progress is saved — you can pick up where you left off when you come back.")) {
+            goBack()
+        }
     } else goBack()
 }
 function cleanup() {
@@ -854,10 +962,43 @@ function sensorBtnBg(t) {
 }
 
 // ─── Lifecycle ──────────────────────────────────────────────
-onMounted(() => {
+async function tryResumeOnMount() {
+    const saved = loadLatestAdventureForPark(parkId.value)
+    if (!saved || !Array.isArray(saved.waypoints) || !saved.waypoints.length) return false
+    if (saved.waypoints.every(w => w.completed)) return false
+
+    // Rebuild a minimal selectedRoute object from the saved metadata so the
+    // active phase header + persistence keep working.
+    selectedRoute.value = {
+        routeId: saved.routeId,
+        difficulty: saved.difficulty || 'easy',
+        routeName: saved.routeName || 'Your Trail',
+    }
+    waypoints.value = saved.waypoints
+    pathSegments.value = saved.pathSegments || []
+    currentWpIndex.value = Math.min(saved.currentWpIndex || 0, saved.waypoints.length - 1)
+    earnedXp.value = saved.earnedXp || 0
+    sensorStarted.value = false
+    arrivalLatched.value = false
+    phase.value = 'active'
+
+    await nextTick()
+    initMap()
+    startGeoWatch()
+    checkActiveOb()
+    trackEvent('adventure_resume', { parkId: parkId.value, routeId: saved.routeId })
+    return true
+}
+
+onMounted(async () => {
     progressStore.init()
     parkId.value = parseInt(route.query.parkId) || 0
     parkName.value = route.query.parkName || 'Park Adventure'
+
+    // If we have an unfinished trail for this park, jump straight back in.
+    const resumed = await tryResumeOnMount()
+    if (resumed) return
+
     fetchRoutes()
     checkSelectOb()
 })
@@ -1122,13 +1263,21 @@ onUnmounted(() => { cleanup() })
 /* Sensor task */
 .sensor-task-ui {
     display: flex;
-    align-items: center;
+    flex-direction: column;
     gap: 10px;
     margin-top: 10px
 }
 
+.sensor-meter-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%
+}
+
 .sensor-meter {
     flex: 1;
+    min-width: 0;
     height: 8px;
     background: #e2e8f0;
     border-radius: 4px;
@@ -1146,7 +1295,7 @@ onUnmounted(() => { cleanup() })
     align-items: baseline;
     gap: 4px;
     flex-shrink: 0;
-    min-width: 80px
+    white-space: nowrap
 }
 
 .sensor-btn {
@@ -1154,11 +1303,20 @@ onUnmounted(() => { cleanup() })
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 10px 18px;
-    border-radius: 12px;
+    width: 100%;
+    padding: 12px 18px;
+    border-radius: 14px;
+    font-size: 14px;
+    border-bottom: 3px solid;
+    box-sizing: border-box
+}
+
+.sensor-hint-text {
+    text-align: center;
     font-size: 13px;
-    flex-shrink: 0;
-    border-bottom: 3px solid
+    font-weight: 800;
+    padding: 8px 0;
+    margin: 0
 }
 
 /* Eye rest */

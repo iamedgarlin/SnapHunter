@@ -154,7 +154,9 @@
               <PhCompass :size="16" weight="duotone" color="#10b981" />
               <p class="text-sm font-black text-gray-700">Adventure Parks</p>
             </div>
-            <span class="text-xs font-bold text-gray-400">sorted by distance</span>
+            <span v-if="commonParks.length" class="text-xs font-black text-emerald-600 bg-emerald-100 rounded-xl px-2 py-1">
+              {{ adventureUnlockedCount }} / {{ commonParks.length }} unlocked
+            </span>
           </div>
         </div>
 
@@ -507,6 +509,87 @@ function commonParkPopupHtml(cp) {
     <p style="font-size:10px;color:#059669;margin:0">${cp.parkHa} · ${cp.transportAccessibility}</p></div>`
 }
 
+/* ─── Other Parks (all remaining parks, map markers only) ─── */
+// Every park that is NOT an Epic park and NOT an Adventure (route) park
+// is still shown on the map as a small muted pin, so kids can see there
+// are more green spaces around them even if they have no special route.
+const otherParks = ref([])
+const otherParkMarkers = {}
+
+function makeOtherParkIcon(visited) {
+  // Same teardrop pin as makePinIcon, just a touch smaller so it reads
+  // as a secondary park. Gray until visited, green once visited —
+  // exactly like the Epic / Adventure unlock behaviour.
+  const fill = visited ? '#16a34a' : '#cbd5e1'
+  const stroke = visited ? '#064e3b' : '#94a3b8'
+  const s = 18
+  return L.divIcon({
+    className: '',
+    html: `<div style="width:${s}px;height:${Math.round(s * 1.25)}px;filter:drop-shadow(0 1px 2px rgba(0,0,0,0.2))">
+      <svg viewBox="0 0 32 40" width="${s}" height="${Math.round(s * 1.25)}">
+        <path d="M16 0C9.373 0 4 5.373 4 12c0 9 12 28 12 28S28 21 28 12C28 5.373 22.627 0 16 0z" fill="${fill}" stroke="${stroke}" stroke-width="1.5"/>
+        <circle cx="16" cy="12" r="5" fill="white" opacity="0.9"/>
+        ${visited ? `<path d="M13 12.5l2 2 4-4" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+      </svg></div>`,
+    iconSize: [s, Math.round(s * 1.25)], iconAnchor: [s / 2, Math.round(s * 1.25)], popupAnchor: [0, -Math.round(s * 1.25)],
+  })
+}
+
+function otherParkPopupHtml(p, visited) {
+  const meta = [p.parkHa, p.transportAccessibility].filter(Boolean).join(' · ')
+  return `<div style="font-family:sans-serif;text-align:center;padding:4px 2px">
+    <p style="font-weight:900;font-size:13px;margin:0 0 2px">${p.parkName}</p>
+    ${meta ? `<p style="font-size:10px;color:#059669;margin:0 0 2px">${meta}</p>` : ''}
+    <p style="font-size:11px;color:${visited ? '#16a34a' : '#94a3b8'};margin:0">${visited ? '✓ Visited' : 'Visit to unlock'}</p></div>`
+}
+
+function clearOtherParkMarkers() {
+  Object.values(otherParkMarkers).forEach(m => m.remove())
+  Object.keys(otherParkMarkers).forEach(k => delete otherParkMarkers[k])
+}
+
+// Re-derive which parks are "other" and refresh their markers. Called
+// after all-parks loads and whenever epic / adventure sets change so a
+// park never gets pinned twice, and whenever the visited set changes so
+// markers flip gray -> green once the park has been visited.
+function refreshOtherParkMarkers() {
+  if (!map) return
+  const epicIds = new Set(Object.keys(epicParksMap.value).map(String))
+  const advIds = new Set(commonParks.value.map(cp => String(cp.parkId)))
+  const visited = visitedParkIdSet.value
+
+  clearOtherParkMarkers()
+  for (const p of otherParks.value) {
+    const id = String(p.parkId)
+    if (epicIds.has(id) || advIds.has(id)) continue
+    if (p.latitude == null || p.longitude == null) continue
+    const isVisited = visited.has(id)
+    const m = L.marker([p.latitude, p.longitude], {
+      icon: makeOtherParkIcon(isVisited),
+      zIndexOffset: isVisited ? -50 : -100, // visited float a bit above unvisited, both under epic/adventure
+    }).addTo(map)
+      .bindPopup(otherParkPopupHtml(p, isVisited), { closeButton: false, offset: [0, -8] })
+    otherParkMarkers[id] = m
+  }
+}
+
+async function fetchOtherParks() {
+  if (!userPos.value) return
+  try {
+    const res = await axios.get(`${API_BASE}/api/all-parks`, {
+      params: {
+        latitude: userPos.value.lat,
+        longitude: userPos.value.lng,
+      }
+    })
+    otherParks.value = Array.isArray(res.data) ? res.data : []
+    refreshOtherParkMarkers()
+  } catch (e) {
+    console.error('Failed to fetch all parks:', e)
+    otherParks.value = []
+  }
+}
+
 function focusCommonPark(cp) {
   if (map) {
     map.setView([cp.latitude, cp.longitude], 16)
@@ -705,6 +788,26 @@ const epicParks = computed(() =>
 )
 const epicUnlockedCount = computed(() => parks.value.filter(p => p.unlocked && epicParksMap.value[p.id]).length)
 
+// Adventure parks the user has already visited (shared visited-parks state),
+// used to show "x / x unlocked" the same way Epic Parks does.
+const visitedParkIdSet = computed(() => {
+  const set = new Set()
+  for (const r of (progressStore.visitedParkRecords || [])) set.add(String(r.parkId))
+  return set
+})
+const adventureUnlockedCount = computed(() =>
+  commonParks.value.filter(cp => visitedParkIdSet.value.has(String(cp.parkId))).length
+)
+
+// Epic and Adventure park lists load asynchronously and can resolve
+// after fetchOtherParks(); re-derive the "other" markers whenever
+// either set changes so a park is never pinned twice.
+watch(commonParks, () => { if (otherParks.value.length) refreshOtherParkMarkers() })
+watch(epicParksMap, () => { if (otherParks.value.length) refreshOtherParkMarkers() }, { deep: true })
+// When the user visits a park anywhere (Home / Adventure / Tasks), its
+// pin here flips from gray to green without needing a page reload.
+watch(visitedParkIdSet, () => { if (otherParks.value.length) refreshOtherParkMarkers() })
+
 /* ─── Map pin icons ─── */
 function makePinIcon(unlocked, isEpic) {
   const fill = unlocked ? (isEpic ? '#8b5cf6' : '#16a34a') : '#cbd5e1'
@@ -846,9 +949,11 @@ function startTracking() {
         weatherFetched = true
         fetchWeather(lat, lng)
         fetchCommonParks()
+        fetchOtherParks()
       }
     } else { userMarker.setLatLng([lat, lng]) }
     checkUnlocks(lat, lng); checkArrival(lat, lng); checkEpicParkProximity(lat, lng)
+    checkParkArrival(lat, lng)
   }, err => console.warn('Geo error:', err), { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 })
 }
 
@@ -861,10 +966,53 @@ function checkUnlocks(lat, lng) {
       showUnlockAnim(park)
       saveUnlockedParks()
       progressStore.visitPark(park.id)
+      // Also write the full visit record (real GPS arrival) so the
+      // Tasks "Parks Series" and Home counter stay in sync with the map.
+      progressStore.recordParkVisit({
+        parkId: park.id,
+        parkName: park.name,
+        latitude: park.lat,
+        longitude: park.lng,
+      })
       progressStore.addXp(50)
       trackEvent('park_unlocked', { parkId: park.id, parkName: park.name })
     }
   })
+}
+
+// Real GPS-arrival detection for Adventure (common) parks and the
+// "other" parks. These are not in parks.value (which is epic-only), so
+// they previously had no arrival check at all. Reaching one now records
+// a genuine visit, which flips its map pin gray->green and marks it
+// visited in the Tasks "Parks Series".
+const arrivedParkIds = new Set()
+function checkParkArrival(lat, lng) {
+  const consider = []
+  for (const cp of commonParks.value) {
+    consider.push({ id: cp.parkId, name: cp.parkName, lat: cp.latitude, lng: cp.longitude })
+  }
+  for (const op of otherParks.value) {
+    consider.push({ id: op.parkId, name: op.parkName, lat: op.latitude, lng: op.longitude })
+  }
+  for (const p of consider) {
+    if (p.lat == null || p.lng == null) continue
+    const key = String(p.id)
+    if (arrivedParkIds.has(key)) continue
+    if (visitedParkIdSet.value.has(key)) { arrivedParkIds.add(key); continue }
+    if (haversine(lat, lng, p.lat, p.lng) <= UNLOCK_RADIUS_KM) {
+      arrivedParkIds.add(key)
+      progressStore.recordParkVisit({
+        parkId: p.id,
+        parkName: p.name,
+        latitude: p.lat,
+        longitude: p.lng,
+      })
+      progressStore.addXp(50)
+      trackEvent('park_visited', { parkId: p.id, parkName: p.name })
+      // refreshOtherParkMarkers is already triggered by the
+      // visitedParkIdSet watcher, so the pin will turn green.
+    }
+  }
 }
 
 function checkEpicParkProximity(lat, lng) {
@@ -999,7 +1147,7 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId)
-  clearTimeout(unlockTimer); clearRoute(); map?.remove()
+  clearTimeout(unlockTimer); clearRoute(); clearOtherParkMarkers(); map?.remove()
 })
 </script>
 

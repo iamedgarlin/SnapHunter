@@ -10,6 +10,138 @@
 
     <div class="px-4 flex flex-col gap-4 mt-4 pb-4">
 
+      <!-- ═══ Parks Series (always first) ═══ -->
+      <div class="rounded-3xl overflow-hidden"
+        :style="`border: 2.5px solid ${parksSeries.borderColor}; border-bottom: 5px solid ${parksSeries.borderBottomColor}`">
+
+        <!-- Card header -->
+        <div class="px-4 pt-4 pb-3 flex items-center justify-between"
+          :style="`background: ${parksSeries.iconBg}`">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-2xl flex items-center justify-center"
+              style="background: white; border-bottom: 3px solid"
+              :style="`border-color: ${parksSeries.borderColor}; border-bottom-color: ${parksSeries.borderBottomColor}`">
+              <component :is="parksSeries.icon" :size="26" weight="duotone" :color="parksSeries.color" />
+            </div>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <p class="text-base font-black" :style="`color: ${parksSeries.color}`">{{ parksSeries.name }}</p>
+                <PhSeal v-if="parksSeriesCompleted" :size="16" weight="duotone" color="#f59e0b" />
+              </div>
+              <p class="text-xs font-semibold text-gray-500">{{ parksSeries.description }}</p>
+            </div>
+          </div>
+          <div class="flex flex-col items-end gap-0.5">
+            <span class="text-sm font-black" :style="`color: ${parksSeries.color}`">
+              {{ parksDoneCount }}/{{ parkCards.length }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Progress bar -->
+        <div class="px-4 py-2" :style="`background: ${parksSeries.iconBg}`">
+          <div class="h-2.5 rounded-full overflow-hidden"
+            style="background: rgba(255,255,255,0.6)">
+            <div class="h-full rounded-full transition-all duration-500"
+              :style="`width: ${parksProgress}%; background: ${parksSeries.color}`">
+            </div>
+          </div>
+        </div>
+
+        <!-- Dashed separator (stamp perforation effect) -->
+        <div class="flex items-center px-2" :style="`background: ${parksSeries.iconBg}`">
+          <div class="flex-1 border-t-2 border-dashed" :style="`border-color: ${parksSeries.borderColor}`"></div>
+          <div class="mx-2">
+            <PhMedal :size="18" weight="duotone"
+              :color="parksSeriesCompleted ? '#f59e0b' : parksSeries.borderColor" />
+          </div>
+          <div class="flex-1 border-t-2 border-dashed" :style="`border-color: ${parksSeries.borderColor}`"></div>
+        </div>
+
+        <!-- Park cards horizontal scroll -->
+        <div class="bg-white px-4 pt-3 pb-4">
+          <div v-if="parksLoading && !parkCards.length"
+            class="flex items-center justify-center py-6 gap-2">
+            <PhSpinner :size="20" weight="duotone" color="#10b981" class="animate-spin" />
+            <span class="text-xs font-bold text-gray-400">Finding parks near you...</span>
+          </div>
+          <div v-else-if="!parkCards.length"
+            class="flex items-center justify-center py-6 text-xs font-semibold text-gray-400">
+            No parks found nearby
+          </div>
+          <div v-else class="flex gap-3 overflow-x-auto pb-1"
+            style="scrollbar-width: none; -ms-overflow-style: none;">
+
+            <div v-for="park in parkCards" :key="park.parkId"
+              class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden relative"
+              style="width: 140px; height: 160px;"
+              :style="park.done
+                ? `background: ${parksSeries.iconBg}; border: 2px solid ${parksSeries.borderColor}; border-bottom: 3px solid ${parksSeries.borderBottomColor}`
+                : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
+              @click="openParkModal(park)">
+
+              <!-- Visited badge -->
+              <div v-if="park.done"
+                class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
+                :style="`background: ${parksSeries.color}; color: white`">
+                <PhCheckCircle :size="10" weight="duotone" color="white" />
+                <span class="text-xs font-black" style="font-size: 10px; line-height: 1">Visited</span>
+              </div>
+
+              <!-- Icon area -->
+              <div class="flex items-center justify-center pt-3 pb-2">
+                <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  :style="park.done
+                    ? `background: white; border: 2px solid ${parksSeries.borderColor}`
+                    : 'background: white; border: 2px solid #e2e8f0'">
+                  <PhTree :size="20" weight="duotone"
+                    :color="park.done ? parksSeries.color : '#94a3b8'" />
+                </div>
+              </div>
+
+              <!-- Park name -->
+              <div class="px-3 flex-1 flex flex-col justify-between pb-3">
+                <div>
+                  <p class="text-xs font-black leading-tight overflow-hidden"
+                    style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
+                    :style="park.done ? `color: ${parksSeries.color}` : 'color: #1f2937'">
+                    {{ park.parkName }}
+                  </p>
+                  <p class="text-xs font-semibold text-gray-400 mt-1">
+                    {{ parkSizeShort(park.parkHa) }} ·
+                    {{ park.distance != null
+                      ? (park.distance < 1000
+                          ? Math.round(park.distance) + 'm'
+                          : (park.distance / 1000).toFixed(1) + 'km')
+                      : '' }}
+                  </p>
+                </div>
+                <div class="flex items-center justify-between mt-2">
+                  <div class="flex items-center gap-0.5">
+                    <PhLightning :size="11" weight="duotone" color="#f59e0b" />
+                    <span class="text-xs font-black text-amber-500">+50</span>
+                  </div>
+                  <PhCheckCircle v-if="park.done" :size="16" weight="duotone" :color="parksSeries.color" />
+                  <PhNavigationArrow v-else :size="14" weight="duotone" color="#cbd5e1" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Badge unlock card -->
+            <div class="flex-shrink-0 flex flex-col items-center justify-center gap-2 rounded-2xl"
+              style="width: 100px; height: 160px; border: 2px dashed #e2e8f0; background: #f8fafc">
+              <PhMedal :size="28" weight="duotone"
+                :color="parksSeriesCompleted ? '#f59e0b' : '#cbd5e1'" />
+              <p class="text-xs font-black text-center px-2 leading-tight"
+                :style="parksSeriesCompleted ? 'color: #f59e0b' : 'color: #94a3b8'">
+                {{ parksSeriesCompleted ? 'All explored!' : 'Visit them all!' }}
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
       <div v-if="loadingTasks" class="flex items-center justify-center py-12 gap-2">
         <PhSpinner :size="24" weight="duotone" color="#10b981" class="animate-spin" />
         <span class="text-sm font-bold text-gray-400">Loading series...</span>
@@ -328,6 +460,76 @@
       </div>
     </div>
 
+    <!-- Parks Series modal (navigate only, no camera) -->
+    <div v-if="showParkModal"
+      class="fixed inset-0 flex items-end justify-center z-50"
+      style="background: rgba(0,0,0,0.4)"
+      @click.self="closeParkModal">
+      <div class="w-full max-w-md bg-white rounded-t-3xl p-6 flex flex-col gap-4"
+        :style="`border-top: 4px solid ${parksSeries.borderBottomColor}`">
+
+        <div class="flex items-start gap-3">
+          <div class="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+            :style="`background: ${parksSeries.iconBg}; border: 2px solid ${parksSeries.borderColor}; border-bottom: 3px solid ${parksSeries.borderBottomColor}`">
+            <PhTree :size="28" weight="duotone" :color="parksSeries.color" />
+          </div>
+          <div class="flex-1">
+            <p class="text-lg font-black text-gray-800">{{ selectedPark?.parkName }}</p>
+            <p class="text-xs font-semibold text-gray-400 mt-0.5 leading-relaxed">
+              {{ selectedPark?.recommendDescription || 'Explore this park and complete its trail to earn XP!' }}
+            </p>
+          </div>
+        </div>
+
+        <!-- Park info tags -->
+        <div class="flex flex-wrap gap-1.5">
+          <span v-if="selectedPark?.parkHa"
+            class="park-modal-tag" style="background:#f0fdfa;color:#0d9488">
+            <PhMapPin :size="11" weight="bold" />
+            {{ selectedPark.parkHa }}
+          </span>
+          <span v-if="selectedPark?.transportAccessibility"
+            class="park-modal-tag" style="background:#eff6ff;color:#2563eb">
+            {{ selectedPark.transportAccessibility }}
+          </span>
+          <span v-if="selectedPark?.taskRichness"
+            class="park-modal-tag" style="background:#fdf4ff;color:#a21caf">
+            {{ selectedPark.taskRichness }}
+          </span>
+        </div>
+
+        <!-- XP reward banner -->
+        <div class="bg-amber-50 rounded-2xl p-3 flex items-center gap-2"
+          style="border: 2px solid #fde68a; border-bottom: 3px solid #fbbf24">
+          <PhLightning :size="20" weight="duotone" color="#f59e0b" />
+          <p class="text-sm font-black text-amber-700">
+            Complete this park to earn +50 XP!
+          </p>
+        </div>
+
+        <!-- Distance banner -->
+        <div class="rounded-2xl p-3 flex items-center gap-2"
+          style="background: #f0fdfa; border: 2px solid #99f6e4; border-bottom: 3px solid #5eead4">
+          <PhNavigationArrow :size="16" weight="duotone" color="#0d9488" />
+          <p class="text-xs font-bold" style="color: #0f766e">
+            {{ parkDistanceText() }}
+          </p>
+        </div>
+
+        <!-- Navigate button (no camera button for parks) -->
+        <button
+          class="btn-game text-base font-black flex items-center justify-center gap-2"
+          @click="startParkAdventure">
+          <PhNavigationArrow :size="20" weight="duotone" color="white" />
+          Start Adventure
+        </button>
+
+        <button class="text-sm font-bold text-gray-400 py-2" @click="closeParkModal">
+          Not yet
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <!-- Onboarding -->
@@ -375,7 +577,8 @@ import { trackEvent } from '../services/analytics'
 import {
   PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
   PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush,
-  PhMapPin, PhCaretRight, PhNavigationArrow, PhWarning, PhStarFour
+  PhMapPin, PhCaretRight, PhNavigationArrow, PhWarning, PhStarFour,
+  PhCompass
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -388,6 +591,11 @@ const weather = useWeatherStore()
 
 const allTasks = ref([])
 const loadingTasks = ref(false)
+
+// ─── Parks Series state ─────────────────────────────────────
+const PARKS_CACHE_KEY = 'snaphunter_all_parks_cache'
+const allParks = ref([])
+const parksLoading = ref(false)
 
 // Onboarding
 const OB_KEY = 'snaphunter_tasks_onboarded'
@@ -405,6 +613,11 @@ const fileInput = ref(null)
 const capturedPhoto = ref(null)
 const evaluating = ref(false)
 const evalResult = ref(null)
+
+// Park Series modal state
+const showParkModal = ref(false)
+const selectedPark = ref(null)
+const parkDistance = ref(null) // meters, or null while resolving
 
 // Location verification state
 const locationStatus = ref('checking') // 'checking' | 'in_range' | 'out_of_range' | 'error'
@@ -450,6 +663,57 @@ const seriesList = [
     borderBottomColor: '#d8b4fe',
   },
 ]
+
+// Parks Series — special series shown first. It lists nearby parks from
+// /api/all-parks and marks the ones the user has already visited (shared
+// with the Home page Recommended Parks + Park Adventure flow).
+const parksSeries = {
+  id: 'parks',
+  name: 'Parks Series',
+  description: 'Visit parks around you',
+  icon: PhCompass,
+  color: '#0d9488',
+  iconBg: '#f0fdfa',
+  borderColor: '#99f6e4',
+  borderBottomColor: '#5eead4',
+}
+
+// Set of visited park ids (as strings) from the shared progress store
+const visitedParkIds = computed(() => {
+  const set = new Set()
+  for (const r of progressStore.visitedParkRecords) set.add(String(r.parkId))
+  return set
+})
+
+// Park cards for the Parks Series, with a `done` flag derived from
+// the shared visited records.
+const parkCards = computed(() =>
+  allParks.value.map(p => ({
+    ...p,
+    done: visitedParkIds.value.has(String(p.parkId)),
+  }))
+)
+
+const parksDoneCount = computed(() =>
+  parkCards.value.filter(p => p.done).length
+)
+
+const parksProgress = computed(() => {
+  if (!parkCards.value.length) return 0
+  return Math.round((parksDoneCount.value / parkCards.value.length) * 100)
+})
+
+const parksSeriesCompleted = computed(() =>
+  parkCards.value.length > 0 && parkCards.value.every(p => p.done)
+)
+
+function parkSizeShort(parkHa) {
+  if (!parkHa) return 'Park'
+  if (parkHa.toLowerCase().includes('large')) return 'Large'
+  if (parkHa.toLowerCase().includes('medium')) return 'Medium'
+  if (parkHa.toLowerCase().includes('small')) return 'Small'
+  return parkHa
+}
 
 // ─── Persistence helpers ────────────────────────────────────
 
@@ -501,6 +765,64 @@ async function loadOrFetchAllTasks() {
     allTasks.value = cached
   } else {
     await fetchAllTasks()
+  }
+}
+
+// ─── Fetch all parks (Parks Series) ─────────────────────────
+
+function loadCachedParks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PARKS_CACHE_KEY) || 'null')
+    if (saved && saved.date === getTodayKey() && Array.isArray(saved.parks)) {
+      return saved.parks
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+function saveCachedParks(parks) {
+  localStorage.setItem(PARKS_CACHE_KEY, JSON.stringify({
+    date: getTodayKey(),
+    parks,
+  }))
+}
+
+async function fetchAllParks() {
+  parksLoading.value = true
+  try {
+    const pos = await new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('no geo')); return }
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true, timeout: 10000,
+      })
+    })
+    const res = await axios.get(`${BASE_URL}/api/all-parks`, {
+      params: {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+      },
+      timeout: 8000,
+    })
+    allParks.value = Array.isArray(res.data) ? res.data : []
+    saveCachedParks(allParks.value)
+  } catch (e) {
+    console.error('Failed to fetch all parks:', e)
+    // Fall back to any cached list so the series is not empty
+    const cached = loadCachedParks()
+    if (cached) allParks.value = cached
+  } finally {
+    parksLoading.value = false
+  }
+}
+
+async function loadOrFetchAllParks() {
+  const cached = loadCachedParks()
+  if (cached && cached.length > 0) {
+    allParks.value = cached
+    // Refresh quietly in the background to get latest distances
+    fetchAllParks()
+  } else {
+    await fetchAllParks()
   }
 }
 
@@ -745,9 +1067,61 @@ function goNavigate(task) {
   })
 }
 
+// ─── Parks Series interaction ───────────────────────────────
+
+function openParkModal(park) {
+  selectedPark.value = park
+  parkDistance.value = park.distance != null ? Math.round(park.distance) : null
+  showParkModal.value = true
+  trackEvent('park_open', { parkId: park.parkId, parkName: park.parkName })
+
+  // Refine distance with a live GPS reading if we can
+  if (navigator.geolocation && park.latitude != null && park.longitude != null) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        parkDistance.value = Math.round(getDistanceMeters(
+          pos.coords.latitude, pos.coords.longitude,
+          park.latitude, park.longitude
+        ))
+      },
+      () => { /* keep API-provided distance */ },
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    )
+  }
+}
+
+function closeParkModal() {
+  showParkModal.value = false
+  selectedPark.value = null
+  parkDistance.value = null
+}
+
+function parkDistanceText() {
+  if (parkDistance.value == null) return 'Calculating distance...'
+  const d = parkDistance.value
+  return d < 1000 ? `${d}m away` : `${(d / 1000).toFixed(1)}km away`
+}
+
+function startParkAdventure() {
+  const park = selectedPark.value
+  if (!park) return
+  // Starting an adventure is intent, not arrival. The park only counts
+  // as visited once the user physically reaches it (GPS-verified on the
+  // map), so we no longer record a visit here.
+  trackEvent('park_adventure_start', { parkId: park.parkId, parkName: park.parkName })
+  router.push({
+    path: '/adventure',
+    query: {
+      parkId: String(park.parkId),
+      parkName: park.parkName,
+    }
+  })
+}
+
 onMounted(() => {
   progressStore.init()
   loadOrFetchAllTasks()
+  loadOrFetchAllParks()
   if (!localStorage.getItem(OB_KEY)) { showOb.value = true; obStep.value = 0 }
 })
 </script>
@@ -756,4 +1130,5 @@ onMounted(() => {
 .ob-card-tasks { position: absolute; width: calc(100% - 32px); max-width: 360px; padding: 20px; border-radius: 24px; background: white; border: 2px solid #d1fae5; border-bottom: 4px solid #34d399; box-shadow: 0 8px 32px rgba(0,0,0,0.2); z-index: 1000; font-family: var(--font-game), system-ui, sans-serif }
 .ob-next-t { padding: 8px 20px; border-radius: 14px; background: linear-gradient(135deg, #10b981, #059669); border: none; border-bottom: 3px solid #047857; color: white; font-size: 13px; font-weight: 900; cursor: pointer; font-family: var(--font-game), system-ui, sans-serif }
 .ob-arrow-up-t { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 10px solid transparent; border-right: 10px solid transparent; border-bottom: 10px solid white }
+.park-modal-tag { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 9px; font-size: 11px; font-weight: 800; line-height: 1; font-family: var(--font-game), system-ui, sans-serif }
 </style>

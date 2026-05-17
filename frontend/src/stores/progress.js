@@ -4,6 +4,8 @@ import { ref, computed } from 'vue'
 const PROGRESS_KEY = 'snaphunter_progress'
 const DAILY_TASKS_KEY = 'snaphunter_daily_tasks'
 const DAILY_SERIES_KEY = 'snaphunter_daily_series'
+const DAILY_PARKS_KEY = 'snaphunter_daily_parks'
+const ADVENTURE_PROGRESS_KEY = 'snaphunter_adventure_progress'
 
 // ─── Level thresholds ──────────────────────────────────────
 // Level 1 = 0 XP, Level 2 = 100 XP, etc.
@@ -114,6 +116,7 @@ function getDefaultProgress() {
     totalTasksCompleted: 0,
     totalPhotos: 0,
     parksVisited: [],        // array of unique park ids (deduplicated)
+    visitedParkRecords: [],  // array of { parkId, parkName, latitude, longitude, visitedAt }
     earnedBadges: [],       // array of badge ids
     activeTitle: null,       // title id or null
     // Streak
@@ -202,6 +205,29 @@ export const useProgressStore = defineStore('progress', () => {
     return Array.isArray(progress.value.parksVisited) ? progress.value.parksVisited.length : 0
   })
 
+  // All visited park records (rich objects), most recent first
+  const visitedParkRecords = computed(() => {
+    const recs = Array.isArray(progress.value.visitedParkRecords)
+      ? progress.value.visitedParkRecords
+      : []
+    return [...recs].sort((a, b) => (b.visitedAt || 0) - (a.visitedAt || 0))
+  })
+
+  // Number of distinct parks visited today (used for "0/3 done" style chip)
+  const parksVisitedTodayCount = computed(() => {
+    const today = getTodayKey()
+    const recs = Array.isArray(progress.value.visitedParkRecords)
+      ? progress.value.visitedParkRecords
+      : []
+    const ids = new Set()
+    for (const r of recs) {
+      if (r.visitedAt && new Date(r.visitedAt).toISOString().slice(0, 10) === today) {
+        ids.add(String(r.parkId))
+      }
+    }
+    return ids.size
+  })
+
   // ─── Week streak display ────────────────────────────────
   const weekStreakDisplay = computed(() => {
     const labels = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
@@ -237,6 +263,10 @@ export const useProgressStore = defineStore('progress', () => {
     // Migrate legacy parksVisited from number to array
     if (typeof progress.value.parksVisited === 'number') {
       progress.value.parksVisited = []
+    }
+    // Ensure visitedParkRecords exists (for users with older saved data)
+    if (!Array.isArray(progress.value.visitedParkRecords)) {
+      progress.value.visitedParkRecords = []
     }
     // Check if day changed and reset refresh counter
     if (progress.value.lastRefreshDate !== getTodayKey()) {
@@ -297,6 +327,46 @@ export const useProgressStore = defineStore('progress', () => {
     if (progress.value.parksVisited.includes(id)) return // already counted
     progress.value.parksVisited.push(id)
     if (progress.value.parksVisited.length >= 1) earnBadge('park_pioneer')
+    save()
+  }
+
+  /**
+   * Record a REAL park visit (the user physically arrived, verified by
+   * GPS proximity). This is the single source of truth for the "visited"
+   * state shown in the Tasks "Parks Series", the map gray->green pins and
+   * the Home "x/3 done" counter. Do NOT call this on Navigate / Start
+   * Adventure taps — those are intent, not arrival.
+   * Deduplicates by parkId — the same park keeps one record, but the
+   * visitedAt timestamp refreshes on each real re-visit.
+   * @param {{parkId:(number|string), parkName?:string, latitude?:number, longitude?:number}} park
+   */
+  function recordParkVisit(park) {
+    if (!park || park.parkId == null) return
+    const id = String(park.parkId)
+
+    // Keep the lightweight id list + park_pioneer badge behaviour
+    visitPark(id)
+
+    if (!Array.isArray(progress.value.visitedParkRecords)) {
+      progress.value.visitedParkRecords = []
+    }
+    const now = Date.now()
+    const existing = progress.value.visitedParkRecords.find(r => String(r.parkId) === id)
+    if (existing) {
+      existing.visitedAt = now
+      // Backfill any missing metadata on re-visit
+      if (park.parkName) existing.parkName = park.parkName
+      if (park.latitude != null) existing.latitude = park.latitude
+      if (park.longitude != null) existing.longitude = park.longitude
+    } else {
+      progress.value.visitedParkRecords.push({
+        parkId: id,
+        parkName: park.parkName || 'Unknown Park',
+        latitude: park.latitude ?? null,
+        longitude: park.longitude ?? null,
+        visitedAt: now,
+      })
+    }
     save()
   }
 
@@ -385,6 +455,8 @@ export const useProgressStore = defineStore('progress', () => {
     localStorage.removeItem(PROGRESS_KEY)
     localStorage.removeItem(DAILY_TASKS_KEY)
     localStorage.removeItem(DAILY_SERIES_KEY)
+    localStorage.removeItem(DAILY_PARKS_KEY)
+    localStorage.removeItem(ADVENTURE_PROGRESS_KEY)
   }
 
   return {
@@ -394,8 +466,9 @@ export const useProgressStore = defineStore('progress', () => {
     currentLevelXp, nextLevelXp, levelTitle,
     earnedBadgeSet, unlockedTitles, activeTitle,
     refreshesLeftToday, weekStreakDisplay, parksVisitedCount,
+    visitedParkRecords, parksVisitedTodayCount,
     // Actions
-    init, save, addXp, completeTask, addPhoto, visitPark,
+    init, save, addXp, completeTask, addPhoto, visitPark, recordParkVisit,
     completeSunnyTask, completeEpicPark, earnBadge, setActiveTitle,
     useRefresh, resetAll,
     // Constants (export for other views)
@@ -422,6 +495,27 @@ export function saveDailyTasks(tasks) {
   }))
 }
 
+// ─── Daily parks persistence (Today's Park) ─────────────────
+// Same model as daily tasks: cached per day, auto-refreshes when
+// the date key rolls over (i.e. at 00:00).
+
+export function loadDailyParks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(DAILY_PARKS_KEY) || 'null')
+    if (saved && saved.date === getTodayKey()) {
+      return saved.parks
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+export function saveDailyParks(parks) {
+  localStorage.setItem(DAILY_PARKS_KEY, JSON.stringify({
+    date: getTodayKey(),
+    parks,
+  }))
+}
+
 export function loadDailySeriesTasks(seriesId) {
   try {
     const key = `${DAILY_SERIES_KEY}_${seriesId}`
@@ -440,4 +534,80 @@ export function saveDailySeriesTasks(seriesId, tasks) {
     seriesId,
     tasks,
   }))
+}
+
+// ─── Park Adventure progress persistence ────────────────────
+// Persists in-progress trail state so the user can leave the
+// Park Adventure view and come back without redoing waypoints.
+// Keyed by `${parkId}-${routeId}` so different trails are independent.
+// Not date-scoped — an adventure can legitimately span more than one day.
+
+function adventureKey(parkId, routeId) {
+  return `${parkId}::${routeId}`
+}
+
+/**
+ * Save the current adventure state.
+ * @param {number|string} parkId
+ * @param {number|string} routeId
+ * @param {object} state - { parkName, route, waypoints, pathSegments, currentWpIndex, earnedXp }
+ */
+export function saveAdventureProgress(parkId, routeId, state) {
+  if (parkId == null || routeId == null) return
+  let all = {}
+  try {
+    all = JSON.parse(localStorage.getItem(ADVENTURE_PROGRESS_KEY) || '{}') || {}
+  } catch { all = {} }
+  all[adventureKey(parkId, routeId)] = {
+    parkId: String(parkId),
+    routeId: String(routeId),
+    savedAt: Date.now(),
+    ...state,
+  }
+  localStorage.setItem(ADVENTURE_PROGRESS_KEY, JSON.stringify(all))
+}
+
+/**
+ * Load a saved adventure for a given park+route, or null if none.
+ */
+export function loadAdventureProgress(parkId, routeId) {
+  if (parkId == null || routeId == null) return null
+  try {
+    const all = JSON.parse(localStorage.getItem(ADVENTURE_PROGRESS_KEY) || '{}') || {}
+    return all[adventureKey(parkId, routeId)] || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Return the most recent unfinished saved adventure for a park
+ * (any route), so we can offer "continue where you left off"
+ * even before the user picks a route again. Null if none.
+ */
+export function loadLatestAdventureForPark(parkId) {
+  if (parkId == null) return null
+  try {
+    const all = JSON.parse(localStorage.getItem(ADVENTURE_PROGRESS_KEY) || '{}') || {}
+    const matches = Object.values(all)
+      .filter(a => String(a.parkId) === String(parkId))
+      .filter(a => Array.isArray(a.waypoints) && !a.waypoints.every(w => w.completed))
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))
+    return matches[0] || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Clear a saved adventure (called when the trail is fully completed
+ * or the user explicitly abandons it).
+ */
+export function clearAdventureProgress(parkId, routeId) {
+  if (parkId == null || routeId == null) return
+  try {
+    const all = JSON.parse(localStorage.getItem(ADVENTURE_PROGRESS_KEY) || '{}') || {}
+    delete all[adventureKey(parkId, routeId)]
+    localStorage.setItem(ADVENTURE_PROGRESS_KEY, JSON.stringify(all))
+  } catch { /* ignore */ }
 }
