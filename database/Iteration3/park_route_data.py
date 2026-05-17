@@ -20,6 +20,7 @@ task_files = [
     Path("park_feature_join_artwork_landmark.csv"),
 ]
 task_id_mapping_file = Path("task_202605131503.csv") # Exported from database with task_id, task_name, latitude, longitude for matching source tasks to database IDs.
+excluded_task_feature_sources = {"landmark"}
 
 wgs84_crs = "EPSG:4326"
 projected_crs = "EPSG:7855"
@@ -85,6 +86,7 @@ def load_task_points() -> Any:
     if not frames:
         return gpd.GeoDataFrame(geometry=[], crs=wgs84_crs)
     tasks = pd.concat(frames, ignore_index=True)
+    tasks = exclude_task_feature_sources(tasks)
     tasks = tasks.dropna(subset=["latitude", "longitude"]).copy()
     tasks = attach_database_task_ids(tasks)
     unmatched = tasks["task_id"].isna()
@@ -99,6 +101,20 @@ def load_task_points() -> Any:
         geometry=gpd.points_from_xy(tasks["longitude"], tasks["latitude"]),
         crs=wgs84_crs,
     )
+
+
+def exclude_task_feature_sources(tasks: Any) -> Any:
+    if "feature_source" not in tasks.columns:
+        return tasks
+    source_key = tasks["feature_source"].map(normalize_task_name)
+    excluded = source_key.isin(excluded_task_feature_sources)
+    if excluded.any():
+        print(
+            f"Excluded {int(excluded.sum())} task points with feature_source in "
+            f"{sorted(excluded_task_feature_sources)}"
+        )
+    return tasks.loc[~excluded].copy()
+
 
 # Group nearby tasks into clusters for route scoring to prevet tasks are too close and route score is dominated by one small area. 
 # Each task can only belong to one cluster
