@@ -43,4 +43,14 @@ public class ParkController {
     ) {
         return ResponseEntity.ok(parkService.getParksWithRoutesForRecommendation(latitude, longitude));
     }
+
+    @GetMapping("/all-parks")
+    public ResponseEntity<List<ParkRecommendationDTO>> getAllParks(
+        @RequestParam Double latitude,
+        @RequestParam Double longitude
+    ) {
+        return ResponseEntity.ok(
+            parkService.getAllParksForRecommendation(latitude, longitude)
+        );
+    }
 }

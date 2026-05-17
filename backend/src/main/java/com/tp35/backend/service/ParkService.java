@@ -48,17 +48,7 @@ public class ParkService {
                     userLongitude, 
                     weatherLevel,
                     random);
-        for (ParkRecommendationDTO park : parks) {
-            park.setTransportAccessibility(
-                    convertTransportAccessibility(park.getTransportAccessibilityScore())
-            );
-            park.setTaskRichness(
-                    convertTaskRichness(park.getTaskRichnessScore())
-            );
-            park.setParkHa(
-                    convertParkHaLevel(park.getParkHaLevel())
-            );
-        }
+        enrichParkRecommendations(parks);
         return parks;
     }
 
@@ -77,6 +67,25 @@ public class ParkService {
                     userLatitude, 
                     userLongitude, 
                     weatherLevel);
+        enrichParkRecommendations(parks);
+        return parks;
+    } 
+
+    public List<ParkRecommendationDTO> getAllParksForRecommendation(
+        Double userLatitude,
+        Double userLongitude
+    ) {
+        List<ParkRecommendationDTO> parks =
+                parkRepository.findAllParksForRecommendation(
+                    userLatitude,
+                    userLongitude
+                );
+
+        enrichParkRecommendations(parks);
+        return parks;
+    }
+
+    private void enrichParkRecommendations(List<ParkRecommendationDTO> parks) {
         for (ParkRecommendationDTO park : parks) {
             park.setTransportAccessibility(
                     convertTransportAccessibility(park.getTransportAccessibilityScore())
@@ -88,8 +97,7 @@ public class ParkService {
                     convertParkHaLevel(park.getParkHaLevel())
             );
         }
-        return parks;
-    } 
+    }
 
     private String convertTaskRichness(Double score) {
         if (score >= 7.50) {

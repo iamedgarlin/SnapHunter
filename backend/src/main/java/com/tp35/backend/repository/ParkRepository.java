@@ -174,4 +174,44 @@ public class ParkRepository {
             return park;
         }, userLongitude, userLatitude, weatherLevel);
     }
+    public List<ParkRecommendationDTO> findAllParksForRecommendation(
+        Double userLatitude,
+        Double userLongitude
+    ) {
+
+        String sql = """
+            SELECT
+                p.park_id,
+                p.park_name,
+                p.latitude,
+                p.longitude,
+                p.transport_accessibility_score,
+                p.task_richness_score,
+                p.park_ha_level,
+                p.recommend_description,
+                ST_Distance_Sphere(
+                    p.st_point,
+                    ST_SRID(POINT(?, ?), 4326)
+                ) AS distance
+            FROM park p
+            ORDER BY distance ASC
+            """;
+
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            ParkRecommendationDTO park = new ParkRecommendationDTO();
+
+            park.setParkId(rs.getInt("park_id"));
+            park.setParkName(rs.getString("park_name"));
+            park.setLatitude(rs.getDouble("latitude"));
+            park.setLongitude(rs.getDouble("longitude"));
+            park.setRecommendDescription(rs.getString("recommend_description"));
+            
+            park.setTransportAccessibilityScore(rs.getDouble("transport_accessibility_score"));
+            park.setTaskRichnessScore(rs.getDouble("task_richness_score"));
+            park.setParkHaLevel(rs.getDouble("park_ha_level"));
+            park.setDistance(rs.getDouble("distance"));
+
+            return park;
+        }, userLongitude, userLatitude);
+    }
 }
