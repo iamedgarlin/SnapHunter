@@ -50,6 +50,26 @@
       </div>
     </Transition>
 
+    <!-- Adventure Park welcome overlay (same format as Epic, green) -->
+    <Transition name="unlock-pop">
+      <div v-if="adventureWelcome" class="unlock-overlay" @click="adventureWelcome = null">
+        <div class="adv-welcome-card" @click.stop>
+          <div class="adv-welcome-badge">ADVENTURE PARK</div>
+          <PhCompass :size="36" weight="duotone" color="#059669" />
+          <p class="text-base font-black text-gray-800 mt-1">Welcome to</p>
+          <p class="text-lg font-black text-emerald-600">{{ adventureWelcome.name }}</p>
+          <p class="text-xs text-gray-500 mt-1 text-center leading-snug" style="max-width: 200px">
+            {{ adventureWelcome.description }}
+          </p>
+          <button class="adv-welcome-btn" @click="enterAdventurePark(adventureWelcome)">
+            <PhCompass :size="16" weight="duotone" color="white" />
+            Start Adventure
+          </button>
+          <button class="text-xs font-semibold text-gray-400 mt-1" @click="adventureWelcome = null">Maybe later</button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- Map -->
     <div class="relative" style="height: 55vh; flex-shrink: 0">
       <div id="map" class="w-full h-full"></div>
@@ -227,12 +247,6 @@
           </div>
           <!-- Description -->
           <p class="text-xs text-gray-500 mt-2 leading-relaxed">{{ cp.recommendDescription }}</p>
-          <!-- Adventure button -->
-          <button class="adventure-btn mt-2"
-            @click.stop="startAdventure(cp)">
-            <PhCompass :size="14" weight="duotone" color="white" />
-            <span>Start Adventure</span>
-          </button>
         </div>
       </div>
     </div>
@@ -258,14 +272,14 @@
           </div>
         </div>
 
-        <!-- Step 2: Adventure Parks -->
+        <!-- Step 2: Epic Parks -->
         <div v-if="mapOnboardingStep === 1" class="map-ob-card" style="bottom: 24%; left: 50%; transform: translateX(-50%);">
           <div class="flex items-center gap-2 mb-2">
-            <PhCompass :size="20" weight="duotone" color="#10b981" />
-            <p class="text-base font-black text-gray-800">Adventure Parks</p>
+            <PhCastleTurret :size="20" weight="duotone" color="#7c3aed" />
+            <p class="text-base font-black text-gray-800">Epic Parks</p>
           </div>
           <p class="text-sm text-gray-600 leading-relaxed">
-            These parks have walking trails with photo and sensor tasks. Tap "Start Adventure" to begin a guided route! Use the green arrow to get directions.
+            Walk to an Epic Park and a welcome pops up automatically. Tap "Start Exploring" to discover hidden landmarks, and try the live Gemini voice tasks where you talk and answer fun questions about what you see!
           </p>
           <div class="map-ob-arrow-down"></div>
           <div class="map-ob-footer">
@@ -274,12 +288,16 @@
           </div>
         </div>
 
-        <!-- Step 3: Tags -->
-        <div v-if="mapOnboardingStep === 2" class="map-ob-card" style="bottom: 18%; left: 50%; transform: translateX(-50%);">
+        <!-- Step 3: Adventure Parks + tag meanings -->
+        <div v-if="mapOnboardingStep === 2" class="map-ob-card" style="bottom: 16%; left: 50%; transform: translateX(-50%);">
           <div class="flex items-center gap-2 mb-2">
-            <PhInfo :size="20" weight="duotone" color="#3b82f6" />
-            <p class="text-base font-black text-gray-800">Understanding Park Tags</p>
+            <PhCompass :size="20" weight="duotone" color="#10b981" />
+            <p class="text-base font-black text-gray-800">Adventure Parks</p>
           </div>
+          <p class="text-sm text-gray-600 leading-relaxed">
+            Walk to an Adventure Park and your adventure starts on arrival — tap "Start Adventure" to follow a guided walking route with photo and sensor tasks, and pick from different difficulty paths.
+          </p>
+          <p class="text-xs font-black text-gray-700 mt-3 mb-1">What the park tags mean:</p>
           <div class="flex flex-col gap-2.5 mt-1">
             <div class="flex items-start gap-2">
               <PhMapPin :size="16" weight="duotone" color="#4338ca" class="flex-shrink-0 mt-0.5" />
@@ -364,6 +382,7 @@ function checkMapOnboarding() {
 const UNLOCK_RADIUS_KM = 0.2
 const ARRIVAL_RADIUS_KM = 0.05
 const EPIC_TRIGGER_RADIUS_KM = 0.4
+const ADVENTURE_TRIGGER_RADIUS_KM = 0.4
 
 /* ─── API ─── */
 const API_BASE = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -603,13 +622,6 @@ function focusCommonPark(cp) {
   }
 }
 
-function startAdventure(cp) {
-  router.push({
-    path: '/adventure',
-    query: { parkId: String(cp.parkId), parkName: cp.parkName },
-  })
-}
-
 /* ─── Tag styling helpers ─── */
 function sizeTagStyle(parkHa) {
   if (!parkHa) return 'background:#f1f5f9;color:#64748b'
@@ -729,6 +741,8 @@ const routeStepsOpen = ref(false)
 const voiceEnabled = ref(true)
 const epicWelcome = ref(null)
 const epicTriggered = ref(new Set())
+const adventureWelcome = ref(null)
+const adventureTriggered = ref(new Set())
 
 let map = null
 let userMarker = null
@@ -978,6 +992,7 @@ function startTracking() {
       }
     } else { userMarker.setLatLng([lat, lng]) }
     checkUnlocks(lat, lng); checkArrival(lat, lng); checkEpicParkProximity(lat, lng)
+    checkAdventureParkProximity(lat, lng)
     checkParkArrival(lat, lng)
   }, err => console.warn('Geo error:', err), { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 })
 }
@@ -1055,6 +1070,35 @@ function checkEpicParkProximity(lat, lng) {
 function enterEpicPark(w) {
   epicWelcome.value = null
   router.push({ path: '/explore', query: { parkId: String(w.id) } })
+}
+
+// Adventure parks now behave like Epic parks: instead of a "Start
+// Adventure" button on the card, we wait for real GPS arrival, show a
+// green welcome popup and speak "Welcome to ...". The button lives in
+// the popup and routes into the adventure route view.
+function checkAdventureParkProximity(lat, lng) {
+  for (const cp of commonParks.value) {
+    if (cp.latitude == null || cp.longitude == null) continue
+    const key = String(cp.parkId)
+    if (adventureTriggered.value.has(key)) continue
+    if (haversine(lat, lng, cp.latitude, cp.longitude) <= ADVENTURE_TRIGGER_RADIUS_KM) {
+      adventureTriggered.value.add(key)
+      adventureWelcome.value = {
+        parkId: cp.parkId,
+        name: cp.parkName,
+        description: cp.recommendDescription || 'Follow the walking route and complete photo and sensor tasks along the way!',
+      }
+      speak(`Welcome to ${cp.parkName}! Tap Start Adventure to begin your guided route.`)
+    }
+  }
+}
+
+function enterAdventurePark(w) {
+  adventureWelcome.value = null
+  router.push({
+    path: '/adventure',
+    query: { parkId: String(w.parkId), parkName: w.name },
+  })
 }
 
 function checkArrival(lat, lng) {
@@ -1403,6 +1447,54 @@ onUnmounted(() => {
   transform: scale(0.95)
 }
 
+/* ─── Adventure Park welcome (green twin of epic-welcome) ─── */
+.adv-welcome-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 28px 20px;
+  border-radius: 28px;
+  background: white;
+  border: 3px solid #6ee7b7;
+  border-bottom: 5px solid #059669;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2);
+  font-family: var(--font-game), system-ui, sans-serif
+}
+
+.adv-welcome-badge {
+  font-size: 9px;
+  font-weight: 900;
+  color: white;
+  background: linear-gradient(135deg, #10b981, #059669);
+  padding: 2px 10px;
+  border-radius: 8px;
+  letter-spacing: 1.5px;
+  margin-bottom: 4px
+}
+
+.adv-welcome-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 8px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  border: none;
+  border-bottom: 3px solid #047857;
+  color: white;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  font-family: var(--font-game), system-ui, sans-serif;
+  transition: transform 0.1s
+}
+
+.adv-welcome-btn:active {
+  transform: scale(0.95)
+}
+
 .unlock-pop-enter-active {
   animation: unlock-scale-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1)
 }
@@ -1515,28 +1607,7 @@ onUnmounted(() => {
 }
 
 .adventure-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 10px 16px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #10b981, #059669);
-  border: none;
-  border-bottom: 3px solid #047857;
-  color: white;
-  font-size: 13px;
-  font-weight: 900;
-  cursor: pointer;
-  font-family: var(--font-game), system-ui, sans-serif;
-  transition: transform 0.1s;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25)
-}
-
-.adventure-btn:active {
-  transform: translateY(2px);
-  border-bottom-width: 1px
+  display: none
 }
 
 .map-onboarding-overlay {

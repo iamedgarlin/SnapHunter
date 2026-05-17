@@ -137,15 +137,15 @@
             <div class="flex items-center gap-1">
               <button @click="handleRecParkRefresh"
                 class="w-7 h-7 rounded-xl flex items-center justify-center relative"
-                :style="progressStore.refreshesLeftToday > 0
+                :style="parkRerollsLeft > 0
                   ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #86efac'
                   : 'background: #f1f5f9; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1; opacity: 0.5'"
-                :disabled="progressStore.refreshesLeftToday <= 0">
+                :disabled="parkRerollsLeft <= 0">
                 <PhArrowsClockwise :size="14" weight="duotone"
-                  :color="progressStore.refreshesLeftToday > 0 ? '#16a34a' : '#94a3b8'"
+                  :color="parkRerollsLeft > 0 ? '#16a34a' : '#94a3b8'"
                   :class="recParksLoading ? 'animate-spin' : ''" />
               </button>
-              <span class="text-xs font-bold text-gray-400">{{ progressStore.refreshesLeftToday }}/3 rerolls</span>
+              <span class="text-xs font-bold text-gray-400">{{ parkRerollsLeft }}/3 rerolls</span>
             </div>
           </div>
         </div>
@@ -154,8 +154,9 @@
           <span class="text-sm font-bold text-gray-400">Finding nearby parks...</span>
         </div>
         <div v-else-if="!recParksLoading && !recParks.length" class="flex flex-col items-center gap-2 py-4">
-          <PhTree :size="28" weight="duotone" color="#94a3b8" />
-          <p class="text-xs font-black text-gray-500 text-center">No parks available right now</p>
+          <PhCloudRain :size="28" weight="duotone" color="#94a3b8" />
+          <p class="text-xs font-black text-gray-500 text-center">No adventure parks available right now</p>
+          <p class="text-xs text-gray-400 text-center">Check back when conditions improve!</p>
         </div>
         <div v-else class="flex flex-col gap-2">
           <div v-for="rp in sortedRecParks" :key="rp.parkId"
@@ -444,6 +445,47 @@ const locationMessage = ref('Checking your location...')
 const recParks = ref([])
 const recParksLoading = ref(false)
 
+// Park rerolls are tracked SEPARATELY from mission rerolls. Previously
+// both buttons called progressStore.useRefresh(), so spending a reroll
+// on tasks also drained the park reroll budget (and vice versa). This
+// local counter mirrors the store's daily-reset behaviour but only for
+// the Today's Park section.
+const PARK_REROLL_KEY = 'snaphunter_park_rerolls'
+const PARK_REROLL_MAX = 3
+const parkRerollsUsed = ref(0)
+
+function parkTodayKey() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function loadParkRerolls() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PARK_REROLL_KEY) || 'null')
+    if (saved && saved.date === parkTodayKey()) {
+      parkRerollsUsed.value = saved.used || 0
+    } else {
+      parkRerollsUsed.value = 0
+      localStorage.setItem(PARK_REROLL_KEY, JSON.stringify({ date: parkTodayKey(), used: 0 }))
+    }
+  } catch {
+    parkRerollsUsed.value = 0
+  }
+}
+
+const parkRerollsLeft = computed(() => Math.max(0, PARK_REROLL_MAX - parkRerollsUsed.value))
+
+function useParkReroll() {
+  // Re-check the date in case the app stayed open past midnight.
+  try {
+    const saved = JSON.parse(localStorage.getItem(PARK_REROLL_KEY) || 'null')
+    if (!saved || saved.date !== parkTodayKey()) parkRerollsUsed.value = 0
+  } catch { /* ignore */ }
+  if (parkRerollsUsed.value >= PARK_REROLL_MAX) return false
+  parkRerollsUsed.value += 1
+  localStorage.setItem(PARK_REROLL_KEY, JSON.stringify({ date: parkTodayKey(), used: parkRerollsUsed.value }))
+  return true
+}
+
 // ─── Active navigation (shared store) ───────────────────────
 // A park / task reached via the Map keeps a live route. Home shows it
 // as "currently navigating": the card turns green and its action
@@ -612,7 +654,7 @@ function handleRefresh() {
 }
 
 function handleRecParkRefresh() {
-  if (!progressStore.useRefresh()) return
+  if (!useParkReroll()) return
   fetchRecommendedParks(true)
 }
 
@@ -767,6 +809,7 @@ function goNavigatePark(rp) {
 onMounted(() => {
   progressStore.init()
   navStore.load()
+  loadParkRerolls()
   if (!weather.temp) weather.fetchWeather()
   loadOrFetchRandomTasks()
   loadOrFetchRecommendedParks()
