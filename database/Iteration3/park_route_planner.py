@@ -715,6 +715,7 @@ def build_route_row(park: Any, route: dict[str, Any]) -> dict[str, Any]:
         "task_score": route["task_score"],
         "nearby_task_cluster_count": route["nearby_task_cluster_count"],
         "nearby_task_count": route["nearby_task_count"],
+        "nearby_task_cluster_ids": ",".join(route["nearby_task_cluster_ids"]),
         "route_task_rows": route["route_task_rows"],
         "start_gate_name": route["start"]["name"],
         "start_gate_source": route["start"]["source"],
