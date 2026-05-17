@@ -174,8 +174,13 @@
         </div>
 
         <!-- Park recommendation cards -->
-        <div v-for="cp in commonParks" :key="'common-' + cp.parkId"
+        <div v-for="cp in sortedCommonParks" :key="'common-' + cp.parkId"
           class="common-park-card cursor-pointer active:scale-[0.98] transition-all"
+          :style="navigatingId === `common-${cp.parkId}`
+            ? (routeInfo?.arrived
+                ? 'border-color:#bbf7d0;border-bottom-color:#34d399;box-shadow:0 4px 14px rgba(16,185,129,0.18)'
+                : 'border-color:#fecaca;border-bottom-color:#f87171;box-shadow:0 4px 14px rgba(248,113,113,0.18)')
+            : ''"
           @click="focusCommonPark(cp)">
           <!-- Top row: name + nav button -->
           <div class="flex items-center gap-3">
@@ -315,6 +320,7 @@ import { useRoute, useRouter } from 'vue-router'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { useProgressStore } from '../stores/progress'
+import { useNavigationStore } from '../stores/navigation'
 import { trackEvent } from '../services/analytics'
 import {
   PhNavigationArrow, PhTree, PhSealCheck, PhX, PhPath, PhCheck,
@@ -711,8 +717,12 @@ function updateWeatherHud() {
 const parks = ref([])
 
 const userPos = ref(null)
-const navigatingId = ref(null)
-const routeInfo = ref(null)
+const navStore = useNavigationStore()
+// navigatingId / routeInfo now live in the shared store so the route
+// survives leaving the Map tab. They stay reactive here as computed
+// so the rest of the template keeps working unchanged.
+const navigatingId = computed(() => navStore.navigatingId)
+const routeInfo = computed(() => navStore.routeInfo)
 const parkListRef = ref(null)
 const unlockAnim = ref(null)
 const routeStepsOpen = ref(false)
@@ -798,6 +808,21 @@ const visitedParkIdSet = computed(() => {
 const adventureUnlockedCount = computed(() =>
   commonParks.value.filter(cp => visitedParkIdSet.value.has(String(cp.parkId))).length
 )
+
+// Adventure Parks list with the park currently being navigated pinned
+// to the top, so the user can see where they are heading and cancel it
+// without scrolling down the whole list.
+const sortedCommonParks = computed(() => {
+  const list = [...commonParks.value]
+  const navId = navStore.navigatingId
+  if (!navId) return list
+  const idx = list.findIndex(cp => `common-${cp.parkId}` === navId)
+  if (idx > 0) {
+    const [active] = list.splice(idx, 1)
+    list.unshift(active)
+  }
+  return list
+})
 
 // Epic and Adventure park lists load asynchronously and can resolve
 // after fetchOtherParks(); re-derive the "other" markers whenever
@@ -1035,7 +1060,7 @@ function enterEpicPark(w) {
 function checkArrival(lat, lng) {
   if (!navTarget || !navigatingId.value || routeInfo.value?.arrived) return
   if (haversine(lat, lng, navTarget.lat, navTarget.lng) <= ARRIVAL_RADIUS_KM) {
-    routeInfo.value = { ...routeInfo.value, arrived: true }
+    navStore.markArrived()
     if (routeLayer) { routeLayer.remove(); routeLayer = null }
     speak(`You have arrived at ${routeInfo.value.name}.`)
   }
@@ -1050,14 +1075,22 @@ async function toggleNavigation(target) {
   if (!userPos.value) { window.open(`https://www.google.com/maps/dir/?api=1&destination=${target.lat},${target.lng}&travelmode=walking`, '_blank'); return }
 
   clearRoute()
-  navigatingId.value = target.id
+  navStore.start({
+    id: target.id,
+    name: target.name,
+    lat: target.lat,
+    lng: target.lng,
+    seriesId: target.seriesId ?? null,
+  })
   navTarget = { lat: target.lat, lng: target.lng }
   nextTick(() => { parkListRef.value?.scrollTo({ top: 0, behavior: 'smooth' }) })
 
-  if (String(target.id).startsWith('task-')) {
-    taskMarker = L.marker([target.lat, target.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 }).addTo(map)
-      .bindPopup(taskPopupHtml(target.name), { closeButton: false, offset: [0, -8], minWidth: 120 })
-  }
+  // Every navigation target gets a destination pin with a Cancel button
+  // popup — previously only `task-` ids did, which is why parks reached
+  // from Home / Tasks / the park list had no on-map way to cancel.
+  const isTask = String(target.id).startsWith('task-')
+  taskMarker = L.marker([target.lat, target.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 }).addTo(map)
+    .bindPopup(taskPopupHtml(target.name, isTask ? null : navDestSubtitle()), { closeButton: false, offset: [0, -8], minWidth: 120 })
 
   const { lat: uLat, lng: uLng } = userPos.value
   try {
@@ -1072,9 +1105,8 @@ async function toggleNavigation(target) {
     L.polyline(coords, { color: '#3b82f6', weight: 4, opacity: 0.85, lineCap: 'round', lineJoin: 'round', dashArray: '12 8', className: 'route-line-animated' }).addTo(routeLayer)
     routeLayer.addTo(map)
 
-    const isTask = String(target.id).startsWith('task-')
-    map.fitBounds(L.latLngBounds(coords), { paddingTopLeft: [60, isTask ? 120 : 60], paddingBottomRight: [60, 60] })
-    if (isTask && taskMarker) map.once('moveend', () => taskMarker?.openPopup())
+    map.fitBounds(L.latLngBounds(coords), { paddingTopLeft: [60, 120], paddingBottomRight: [60, 60] })
+    if (taskMarker) map.once('moveend', () => taskMarker?.openPopup())
 
     const distKm = r.distance / 1000, durMin = Math.round(r.duration / 60)
     const steps = []
@@ -1097,36 +1129,76 @@ async function toggleNavigation(target) {
       }
     }
 
-    routeInfo.value = {
+    navStore.setRouteInfo({
       name: target.name,
       distance: distKm < 1 ? `${Math.round(distKm * 1000)}m` : `${distKm.toFixed(1)}km`,
       duration: durMin < 60 ? `${durMin} min` : `${Math.floor(durMin / 60)}h ${durMin % 60}m`,
       arrived: false, steps,
-    }
+    })
     routeStepsOpen.value = false
     if (steps.length > 0) { const f = steps[0]; speak(`${f.instruction}${f.name ? ' on ' + f.name : ''}, ${f.distanceText}`) }
     checkArrival(uLat, uLng)
   } catch (err) { console.error('OSRM error:', err); clearRoute() }
 }
 
+// Small map-pin subtitle for a park destination (tasks keep the default
+// camera "Task location" wording from taskPopupHtml).
+function navDestSubtitle() {
+  return `<span style="display:inline-flex;align-items:center;gap:3px;color:#10b981"><svg width="11" height="11" viewBox="0 0 256 256" fill="none" style="display:inline-block;vertical-align:-1px"><path d="M128,16a88,88,0,0,0-88,88c0,75.3,80,132.17,83.36,134.57a8,8,0,0,0,9.28,0C136,236.17,216,179.3,216,104A88,88,0,0,0,128,16Z" fill="none" stroke="#10b981" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/><circle cx="128" cy="104" r="32" fill="none" stroke="#10b981" stroke-width="20"/></svg>Destination</span>`
+}
+
 function clearRoute() {
   if (routeLayer) { routeLayer.remove(); routeLayer = null }
   if (taskMarker) { taskMarker.remove(); taskMarker = null }
-  navigatingId.value = null; routeInfo.value = null; routeStepsOpen.value = false; navTarget = null
+  navStore.cancel()
+  routeStepsOpen.value = false
+  navTarget = null
   speechSynthesis?.cancel()
 }
 
 function handleRouteQuery() {
   const q = route.query
-  if (q.navLat && q.navLng && q.navName) {
-    const target = { lat: parseFloat(q.navLat), lng: parseFloat(q.navLng), name: q.navName, id: q.navId || `task-${q.navLat}-${q.navLng}` }
+  const hasFreshQuery = !!(q.navLat && q.navLng && q.navName)
+  const freshId = hasFreshQuery
+    ? (q.navId || `task-${q.navLat}-${q.navLng}`)
+    : null
+
+  // A fresh navigate request for a DIFFERENT target supersedes whatever
+  // route is currently active. Same target (or no query) → just resume
+  // the existing route so leaving/returning to the tab is seamless.
+  const shouldResume = navStore.isNavigating && navStore.target &&
+    (!hasFreshQuery || freshId === navStore.target.id)
+
+  if (shouldResume) {
+    const t = navStore.target
+    const target = { lat: t.lat, lng: t.lng, name: t.name, id: t.id }
+    navTarget = { lat: t.lat, lng: t.lng }
+    const resume = () => {
+      if (navStore.arrived) {
+        if (map) {
+          taskMarker = L.marker([t.lat, t.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 }).addTo(map)
+            .bindPopup(taskPopupHtml(t.name, t.kind === 'task' ? null : navDestSubtitle()), { closeButton: false, offset: [0, -8], minWidth: 120 })
+          map.setView([t.lat, t.lng], 15)
+        }
+      } else if (userPos.value && map) {
+        rebuildActiveRoute(target)
+      }
+    }
+    setTimeout(resume, 500)
+    return
+  }
+
+  if (hasFreshQuery) {
+    const target = { lat: parseFloat(q.navLat), lng: parseFloat(q.navLng), name: q.navName, id: freshId }
+    if (q.navSeriesId) target.seriesId = q.navSeriesId
     const tryNav = () => {
       if (userPos.value && map) { toggleNavigation(target) }
       else if (map) {
         map.setView([target.lat, target.lng], 15)
         taskMarker = L.marker([target.lat, target.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 }).addTo(map)
           .bindPopup(taskPopupHtml(target.name, '<span style="color:#94a3b8">Waiting for GPS...</span>'), { closeButton: false, offset: [0, -8], minWidth: 120 })
-        navigatingId.value = target.id
+        navStore.start({ id: target.id, name: target.name, lat: target.lat, lng: target.lng, seriesId: target.seriesId ?? null })
+        navTarget = { lat: target.lat, lng: target.lng }
         const unwatch = watch(userPos, pos => { if (pos) { unwatch(); toggleNavigation(target) } })
       }
     }
@@ -1134,8 +1206,34 @@ function handleRouteQuery() {
   }
 }
 
+// Redraw an already-active route (used when coming back to the Map tab).
+// Same OSRM call as toggleNavigation but it does NOT touch the store —
+// the navigation is already live, we are only repainting the map.
+async function rebuildActiveRoute(target) {
+  if (!userPos.value || !map) return
+  const isTask = String(target.id).startsWith('task-')
+  taskMarker = L.marker([target.lat, target.lng], { icon: makeTaskPinIcon(), zIndexOffset: 900 }).addTo(map)
+    .bindPopup(taskPopupHtml(target.name, isTask ? null : navDestSubtitle()), { closeButton: false, offset: [0, -8], minWidth: 120 })
+  const { lat: uLat, lng: uLng } = userPos.value
+  try {
+    const res = await fetch(`https://router.project-osrm.org/route/v1/foot/${uLng},${uLat};${target.lng},${target.lat}?overview=full&geometries=geojson&steps=false`)
+    const data = await res.json()
+    if (data.code !== 'Ok' || !data.routes?.length) return
+    const r = data.routes[0]
+    const coords = r.geometry.coordinates.map(([lng, lat]) => [lat, lng])
+    routeLayer = L.layerGroup()
+    L.polyline(coords, { color: '#1e40af', weight: 7, opacity: 0.15, lineCap: 'round', lineJoin: 'round' }).addTo(routeLayer)
+    L.polyline(coords, { color: '#3b82f6', weight: 4, opacity: 0.85, lineCap: 'round', lineJoin: 'round', dashArray: '12 8', className: 'route-line-animated' }).addTo(routeLayer)
+    routeLayer.addTo(map)
+    map.fitBounds(L.latLngBounds(coords), { paddingTopLeft: [60, 120], paddingBottomRight: [60, 60] })
+    if (taskMarker) map.once('moveend', () => taskMarker?.openPopup())
+    checkArrival(uLat, uLng)
+  } catch (err) { console.error('OSRM resume error:', err) }
+}
+
 onMounted(async () => {
   progressStore.init()
+  navStore.load()
   await fetchEpicParks()
   loadUnlockedParks()
   const mapReady = await initMap()
@@ -1147,7 +1245,13 @@ onMounted(async () => {
 })
 onUnmounted(() => {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId)
-  clearTimeout(unlockTimer); clearRoute(); clearOtherParkMarkers(); map?.remove()
+  // IMPORTANT: leaving the Map tab must NOT cancel navigation. We only
+  // tear down this view's own Leaflet layers; the route lives in the
+  // store and is rebuilt by handleRouteQuery() when we come back. Only
+  // the user's explicit Cancel (red X / popup) ends navigation.
+  if (routeLayer) { routeLayer.remove(); routeLayer = null }
+  if (taskMarker) { taskMarker.remove(); taskMarker = null }
+  clearTimeout(unlockTimer); clearOtherParkMarkers(); map?.remove()
 })
 </script>
 

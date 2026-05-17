@@ -63,21 +63,34 @@
             <span class="text-sm font-bold text-gray-400">Loading tasks...</span>
           </div>
           <div v-else class="flex flex-col gap-2">
-            <div v-for="task in randomTasks" :key="task.taskId"
+            <div v-for="task in sortedRandomTasks" :key="task.taskId"
               class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
               :style="task.done
                 ? 'background: #f0fdf4; border: 2px solid #bbf7d0'
-                : 'background: #f8fafc; border: 2px solid #e2e8f0'"
-              @click="openConfirm(task)">
+                : navStore.isActive(taskNavId(task))
+                  ? (navStore.arrived
+                      ? 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #34d399'
+                      : 'background:#f0fdf4;border:2px solid #86efac;border-bottom:3px solid #34d399')
+                  : 'background: #f8fafc; border: 2px solid #e2e8f0'"
+              @click="navStore.isActive(taskNavId(task)) && !task.done ? null : openConfirm(task)">
               <div class="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
-                :style="task.done ? 'background: #dcfce7' : 'background: #f1f5f9'">
-                <PhCamera :size="18" weight="duotone" :color="task.done ? '#16a34a' : '#94a3b8'" />
+                :style="task.done || navStore.isActive(taskNavId(task)) ? 'background: #dcfce7' : 'background: #f1f5f9'">
+                <PhCamera :size="18" weight="duotone" :color="task.done || navStore.isActive(taskNavId(task)) ? '#16a34a' : '#94a3b8'" />
               </div>
               <div class="flex-1">
-                <p class="text-sm font-bold"
-                  :style="task.done ? 'color: #16a34a; text-decoration: line-through' : 'color: #374151'">
-                  {{ task.taskName }}
-                </p>
+                <div class="flex items-center gap-1.5">
+                  <p class="text-sm font-bold"
+                    :style="task.done
+                      ? 'color: #16a34a; text-decoration: line-through'
+                      : navStore.isActive(taskNavId(task)) ? 'color:#15803d' : 'color: #374151'">
+                    {{ task.taskName }}
+                  </p>
+                  <span v-if="!task.done && navStore.isActive(taskNavId(task))"
+                    class="text-xs font-black px-1.5 py-0.5 rounded-md flex-shrink-0"
+                    style="background:#dcfce7;color:#15803d">
+                    {{ navStore.arrived ? 'Arrived' : 'Navigating' }}
+                  </span>
+                </div>
                 <p class="text-xs text-gray-400 mt-0.5">{{ task.taskDescription }}</p>
               </div>
               <div v-if="!task.done" class="flex items-center gap-1.5 flex-shrink-0">
@@ -85,7 +98,20 @@
                   <PhLightning :size="12" weight="duotone" color="#f59e0b" />
                   <span class="text-xs font-black text-amber-500">+{{ task.rewardPoint }}</span>
                 </div>
-                <button v-if="task.latitude != null"
+                <!-- Active navigation: red X (or green check on arrival) to cancel -->
+                <button v-if="navStore.isActive(taskNavId(task)) && !navStore.arrived"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style="background:#fef2f2;border:1.5px solid #fecaca;border-bottom:2px solid #f87171"
+                  @click.stop="cancelNavigation">
+                  <PhX :size="13" weight="bold" color="#ef4444" />
+                </button>
+                <button v-else-if="navStore.isActive(taskNavId(task)) && navStore.arrived"
+                  class="w-7 h-7 rounded-lg flex items-center justify-center"
+                  style="background:#f0fdf4;border:1.5px solid #bbf7d0;border-bottom:2px solid #34d399"
+                  @click.stop="cancelNavigation">
+                  <PhCheck :size="13" weight="bold" color="#16a34a" />
+                </button>
+                <button v-else-if="task.latitude != null"
                   class="w-7 h-7 rounded-lg flex items-center justify-center"
                   style="background: #eff6ff; border: 1.5px solid #bfdbfe; border-bottom: 2px solid #93c5fd"
                   @click.stop="goNavigate(task)">
@@ -132,16 +158,28 @@
           <p class="text-xs font-black text-gray-500 text-center">No parks available right now</p>
         </div>
         <div v-else class="flex flex-col gap-2">
-          <div v-for="rp in recParks" :key="rp.parkId"
+          <div v-for="rp in sortedRecParks" :key="rp.parkId"
             class="flex items-center gap-3 p-3 rounded-2xl cursor-pointer active:scale-95 transition-all"
-            style="background: #f8fafc; border: 2px solid #e2e8f0"
-            @click="goNavigatePark(rp)">
+            :style="navStore.isActive(parkNavId(rp))
+              ? (navStore.arrived
+                  ? 'background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #34d399'
+                  : 'background:#f0fdf4;border:2px solid #86efac;border-bottom:3px solid #34d399')
+              : 'background: #f8fafc; border: 2px solid #e2e8f0'"
+            @click="navStore.isActive(parkNavId(rp)) ? null : goNavigatePark(rp)">
             <div class="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0"
               style="background:#ecfdf5;border:2px solid #a7f3d0;border-bottom:3px solid #6ee7b7">
               <PhTree :size="20" weight="duotone" color="#059669" />
             </div>
             <div class="flex-1 min-w-0">
-              <p class="text-sm font-bold text-gray-800 truncate">{{ rp.parkName }}</p>
+              <div class="flex items-center gap-1.5">
+                <p class="text-sm font-bold truncate"
+                  :style="navStore.isActive(parkNavId(rp)) ? 'color:#15803d' : 'color:#1f2937'">{{ rp.parkName }}</p>
+                <span v-if="navStore.isActive(parkNavId(rp))"
+                  class="text-xs font-black px-1.5 py-0.5 rounded-md flex-shrink-0"
+                  :style="navStore.arrived ? 'background:#dcfce7;color:#16a34a' : 'background:#dcfce7;color:#15803d'">
+                  {{ navStore.arrived ? 'Arrived' : 'Navigating' }}
+                </span>
+              </div>
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-xs font-semibold text-gray-400">{{ formatDistM(rp.distance) }}</span>
               </div>
@@ -165,7 +203,20 @@
                 <PhLightning :size="12" weight="duotone" color="#f59e0b" />
                 <span class="text-xs font-black text-amber-500">+50</span>
               </div>
-              <button class="w-8 h-8 rounded-xl flex items-center justify-center"
+              <!-- Active: red X to cancel navigation; otherwise nav arrow -->
+              <button v-if="navStore.isActive(parkNavId(rp)) && !navStore.arrived"
+                class="w-8 h-8 rounded-xl flex items-center justify-center"
+                style="background:#fef2f2;border:2px solid #fecaca;border-bottom:3px solid #f87171"
+                @click.stop="cancelNavigation">
+                <PhX :size="14" weight="bold" color="#ef4444" />
+              </button>
+              <button v-else-if="navStore.isActive(parkNavId(rp)) && navStore.arrived"
+                class="w-8 h-8 rounded-xl flex items-center justify-center"
+                style="background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #34d399"
+                @click.stop="cancelNavigation">
+                <PhCheck :size="14" weight="bold" color="#16a34a" />
+              </button>
+              <button v-else class="w-8 h-8 rounded-xl flex items-center justify-center"
                 style="background:#f0fdf4;border:2px solid #bbf7d0;border-bottom:3px solid #86efac"
                 @click.stop="goNavigatePark(rp)">
                 <PhNavigationArrow :size="14" weight="duotone" color="#10b981" />
@@ -356,13 +407,14 @@ import axios from 'axios'
 import { useAuthStore } from '../stores/auth'
 import { useWeatherStore } from '../stores/weather'
 import { useProgressStore, loadDailyTasks, saveDailyTasks, loadDailyParks, saveDailyParks } from '../stores/progress'
+import { useNavigationStore } from '../stores/navigation'
 import { trackEvent } from '../services/analytics'
 import {
   PhSun, PhCloud, PhCloudRain, PhPawPrint, PhLightning,
   PhTarget, PhCheckCircle, PhXCircle, PhNavigationArrow,
   PhCamera, PhArrowsClockwise, PhSpinner,
   PhTree, PhMapPin, PhWarning, PhBus, PhFlower,
-  PhInfo
+  PhInfo, PhX, PhCheck
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -370,6 +422,7 @@ const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsi
 const authStore = useAuthStore()
 const weather = useWeatherStore()
 const progressStore = useProgressStore()
+const navStore = useNavigationStore()
 const router = useRouter()
 const userName = authStore.user?.nickname || 'Explorer'
 
@@ -390,6 +443,43 @@ const locationMessage = ref('Checking your location...')
 // Recommended parks (no-route parks)
 const recParks = ref([])
 const recParksLoading = ref(false)
+
+// ─── Active navigation (shared store) ───────────────────────
+// A park / task reached via the Map keeps a live route. Home shows it
+// as "currently navigating": the card turns green and its action
+// button becomes a red X that cancels (the only way to end it).
+function parkNavId(rp) { return `park-${rp.parkId}` }
+function taskNavId(t) { return t.taskId ? `task-${t.taskId}` : `park-${t.taskName}` }
+
+const sortedRecParks = computed(() => {
+  const list = [...recParks.value]
+  const navId = navStore.navigatingId
+  if (!navId) return list
+  const idx = list.findIndex(rp => parkNavId(rp) === navId)
+  if (idx > 0) {
+    const [active] = list.splice(idx, 1)
+    list.unshift(active)
+  }
+  return list
+})
+
+// Today's Mission with the task currently being navigated pinned first
+// (and only when it is not already completed).
+const sortedRandomTasks = computed(() => {
+  const list = [...randomTasks.value]
+  const navId = navStore.navigatingId
+  if (!navId) return list
+  const idx = list.findIndex(t => taskNavId(t) === navId && !t.done)
+  if (idx > 0) {
+    const [active] = list.splice(idx, 1)
+    list.unshift(active)
+  }
+  return list
+})
+
+function cancelNavigation() {
+  navStore.cancel()
+}
 
 const canTakePhoto = computed(() => {
   if (selectedTask.value?.latitude == null) return true
@@ -676,6 +766,7 @@ function goNavigatePark(rp) {
 
 onMounted(() => {
   progressStore.init()
+  navStore.load()
   if (!weather.temp) weather.fetchWeather()
   loadOrFetchRandomTasks()
   loadOrFetchRecommendedParks()

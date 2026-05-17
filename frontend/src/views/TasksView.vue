@@ -72,16 +72,26 @@
           <div v-else class="flex gap-3 overflow-x-auto pb-1"
             style="scrollbar-width: none; -ms-overflow-style: none;">
 
-            <div v-for="park in parkCards" :key="park.parkId"
+            <div v-for="park in sortedParkCards" :key="park.parkId"
               class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden relative"
               style="width: 140px; height: 160px;"
-              :style="park.done
-                ? `background: ${parksSeries.iconBg}; border: 2px solid ${parksSeries.borderColor}; border-bottom: 3px solid ${parksSeries.borderBottomColor}`
-                : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
-              @click="openParkModal(park)">
+              :style="navStore.isActive(parkCardNavId(park))
+                ? `background: ${parksSeries.iconBg}; border: 2px solid ${navStore.arrived ? parksSeries.borderColor : '#fecaca'}; border-bottom: 3px solid ${navStore.arrived ? parksSeries.borderBottomColor : '#f87171'}`
+                : park.done
+                  ? `background: ${parksSeries.iconBg}; border: 2px solid ${parksSeries.borderColor}; border-bottom: 3px solid ${parksSeries.borderBottomColor}`
+                  : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
+              @click="navStore.isActive(parkCardNavId(park)) ? cancelNavigation() : openParkModal(park)">
 
-              <!-- Visited badge -->
-              <div v-if="park.done"
+              <!-- Navigating / Visited badge -->
+              <div v-if="navStore.isActive(parkCardNavId(park))"
+                class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
+                :style="navStore.arrived
+                  ? `background: ${parksSeries.color}; color: white`
+                  : 'background: #ef4444; color: white'">
+                <PhNavigationArrow :size="10" weight="duotone" color="white" />
+                <span class="text-xs font-black" style="font-size: 10px; line-height: 1">{{ navStore.arrived ? 'Arrived' : 'Navigating' }}</span>
+              </div>
+              <div v-else-if="park.done"
                 class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
                 :style="`background: ${parksSeries.color}; color: white`">
                 <PhCheckCircle :size="10" weight="duotone" color="white" />
@@ -91,11 +101,11 @@
               <!-- Icon area -->
               <div class="flex items-center justify-center pt-3 pb-2">
                 <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  :style="park.done
+                  :style="park.done || navStore.isActive(parkCardNavId(park))
                     ? `background: white; border: 2px solid ${parksSeries.borderColor}`
                     : 'background: white; border: 2px solid #e2e8f0'">
                   <PhTree :size="20" weight="duotone"
-                    :color="park.done ? parksSeries.color : '#94a3b8'" />
+                    :color="park.done || navStore.isActive(parkCardNavId(park)) ? parksSeries.color : '#94a3b8'" />
                 </div>
               </div>
 
@@ -104,7 +114,7 @@
                 <div>
                   <p class="text-xs font-black leading-tight overflow-hidden"
                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-                    :style="park.done ? `color: ${parksSeries.color}` : 'color: #1f2937'">
+                    :style="park.done || navStore.isActive(parkCardNavId(park)) ? `color: ${parksSeries.color}` : 'color: #1f2937'">
                     {{ park.parkName }}
                   </p>
                   <p class="text-xs font-semibold text-gray-400 mt-1">
@@ -121,7 +131,16 @@
                     <PhLightning :size="11" weight="duotone" color="#f59e0b" />
                     <span class="text-xs font-black text-amber-500">+50</span>
                   </div>
-                  <PhCheckCircle v-if="park.done" :size="16" weight="duotone" :color="parksSeries.color" />
+                  <!-- Active: red X (or check on arrival) to cancel -->
+                  <div v-if="navStore.isActive(parkCardNavId(park))"
+                    class="w-6 h-6 rounded-lg flex items-center justify-center"
+                    :style="navStore.arrived
+                      ? 'background:#f0fdf4;border:1.5px solid #bbf7d0'
+                      : 'background:#fef2f2;border:1.5px solid #fecaca'">
+                    <PhCheck v-if="navStore.arrived" :size="13" weight="bold" color="#16a34a" />
+                    <PhX v-else :size="13" weight="bold" color="#ef4444" />
+                  </div>
+                  <PhCheckCircle v-else-if="park.done" :size="16" weight="duotone" :color="parksSeries.color" />
                   <PhNavigationArrow v-else :size="14" weight="duotone" color="#cbd5e1" />
                 </div>
               </div>
@@ -205,16 +224,24 @@
           <div v-else class="flex gap-3 overflow-x-auto pb-1"
             style="scrollbar-width: none; -ms-overflow-style: none;">
 
-            <div v-for="group in getGroupedTasks(series.id)" :key="group.key"
+            <div v-for="group in getSortedGroupedTasks(series.id)" :key="group.key"
               class="flex-shrink-0 flex flex-col rounded-2xl cursor-pointer active:scale-95 transition-all overflow-hidden relative"
               style="width: 140px; height: 160px;"
-              :style="group.allDone
-                ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`
-                : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
-              @click="handleCardClick(group, series)">
+              :style="groupNavId(group)
+                ? `background: ${series.iconBg}; border: 2px solid ${navStore.arrived ? series.borderColor : '#fecaca'}; border-bottom: 3px solid ${navStore.arrived ? series.borderBottomColor : '#f87171'}`
+                : group.allDone
+                  ? `background: ${series.iconBg}; border: 2px solid ${series.borderColor}; border-bottom: 3px solid ${series.borderBottomColor}`
+                  : 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'"
+              @click="groupNavId(group) ? cancelNavigation() : handleCardClick(group, series)">
 
-              <!-- Multi-location badge -->
-              <div v-if="group.tasks.length > 1"
+              <!-- Navigating badge takes precedence over the multi-location one -->
+              <div v-if="groupNavId(group)"
+                class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
+                :style="navStore.arrived ? `background: ${series.color}; color: white` : 'background: #ef4444; color: white'">
+                <PhNavigationArrow :size="10" weight="duotone" color="white" />
+                <span class="text-xs font-black" style="font-size: 10px; line-height: 1">{{ navStore.arrived ? 'Arrived' : 'Navigating' }}</span>
+              </div>
+              <div v-else-if="group.tasks.length > 1"
                 class="absolute top-2 right-2 flex items-center gap-0.5 px-1.5 py-0.5 rounded-full"
                 :style="group.allDone
                   ? `background: ${series.color}; color: white`
@@ -226,11 +253,11 @@
               <!-- Icon area -->
               <div class="flex items-center justify-center pt-3 pb-2">
                 <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  :style="group.allDone
+                  :style="group.allDone || groupNavId(group)
                     ? `background: white; border: 2px solid ${series.borderColor}`
                     : 'background: white; border: 2px solid #e2e8f0'">
                   <PhCamera :size="20" weight="duotone"
-                    :color="group.allDone ? series.color : '#94a3b8'" />
+                    :color="group.allDone || groupNavId(group) ? series.color : '#94a3b8'" />
                 </div>
               </div>
 
@@ -239,7 +266,7 @@
                 <div>
                   <p class="text-xs font-black leading-tight overflow-hidden"
                     style="display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;"
-                    :style="group.allDone ? `color: ${series.color}` : 'color: #1f2937'">
+                    :style="group.allDone || groupNavId(group) ? `color: ${series.color}` : 'color: #1f2937'">
                     {{ group.taskName }}
                   </p>
                   <p v-if="group.tasks.length === 1" class="text-xs font-semibold text-gray-400 mt-1 overflow-hidden"
@@ -256,7 +283,16 @@
                     <PhLightning :size="11" weight="duotone" color="#f59e0b" />
                     <span class="text-xs font-black text-amber-500">+{{ group.totalReward }}</span>
                   </div>
-                  <PhCheckCircle v-if="group.allDone" :size="16" weight="duotone" :color="series.color" />
+                  <!-- Active: red X (or check on arrival) to cancel -->
+                  <div v-if="groupNavId(group)"
+                    class="w-6 h-6 rounded-lg flex items-center justify-center"
+                    :style="navStore.arrived
+                      ? 'background:#f0fdf4;border:1.5px solid #bbf7d0'
+                      : 'background:#fef2f2;border:1.5px solid #fecaca'">
+                    <PhCheck v-if="navStore.arrived" :size="13" weight="bold" color="#16a34a" />
+                    <PhX v-else :size="13" weight="bold" color="#ef4444" />
+                  </div>
+                  <PhCheckCircle v-else-if="group.allDone" :size="16" weight="duotone" :color="series.color" />
                   <PhCamera v-else :size="14" weight="duotone" color="#cbd5e1" />
                 </div>
               </div>
@@ -507,21 +543,31 @@
           </p>
         </div>
 
-        <!-- Distance banner -->
+        <!-- Distance / proximity banner — same style & wording as the
+             other series so the first card no longer looks different -->
         <div class="rounded-2xl p-3 flex items-center gap-2"
-          style="background: #f0fdfa; border: 2px solid #99f6e4; border-bottom: 3px solid #5eead4">
-          <PhNavigationArrow :size="16" weight="duotone" color="#0d9488" />
-          <p class="text-xs font-bold" style="color: #0f766e">
-            {{ parkDistanceText() }}
+          :style="parkProximity === 'in_range'
+            ? 'background: #f0fdf4; border: 2px solid #bbf7d0; border-bottom: 3px solid #34d399'
+            : parkProximity === 'checking'
+              ? 'background: #f8fafc; border: 2px solid #e2e8f0; border-bottom: 3px solid #cbd5e1'
+              : 'background: #fff7ed; border: 2px solid #fed7aa; border-bottom: 3px solid #fdba74'">
+          <PhSpinner v-if="parkProximity === 'checking'" :size="16" weight="duotone" color="#94a3b8" class="animate-spin" />
+          <PhMapPin v-else-if="parkProximity === 'in_range'" :size="16" weight="duotone" color="#16a34a" />
+          <PhWarning v-else :size="16" weight="duotone" color="#f59e0b" />
+          <p class="text-xs font-bold"
+            :style="parkProximity === 'in_range' ? 'color:#16a34a' : parkProximity === 'checking' ? 'color:#94a3b8' : 'color:#ea580c'">
+            {{ parkProximityMessage }}
           </p>
         </div>
 
-        <!-- Navigate button (no camera button for parks) -->
+        <!-- Navigate to Location: this is a plain park with no route, so
+             it uses the same map-navigation flow as the task cards
+             (destination pin + Cancel), not the adventure route view. -->
         <button
           class="btn-game text-base font-black flex items-center justify-center gap-2"
-          @click="startParkAdventure">
+          @click="navigateToPark">
           <PhNavigationArrow :size="20" weight="duotone" color="white" />
-          Start Adventure
+          Navigate to Location
         </button>
 
         <button class="text-sm font-bold text-gray-400 py-2" @click="closeParkModal">
@@ -572,13 +618,14 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useProgressStore } from '../stores/progress'
+import { useNavigationStore } from '../stores/navigation'
 import { useWeatherStore } from '../stores/weather'
 import { trackEvent } from '../services/analytics'
 import {
   PhLightning, PhCheckCircle, PhXCircle, PhSpinner,
   PhCamera, PhMedal, PhSeal, PhTree, PhBuildings, PhPaintBrush,
   PhMapPin, PhCaretRight, PhNavigationArrow, PhWarning, PhStarFour,
-  PhCompass
+  PhCompass, PhX, PhCheck
 } from '@phosphor-icons/vue'
 
 const BASE_URL = 'https://tp35-kids-c7cxb7b7f7akbkah.southeastasia-01.azurewebsites.net'
@@ -587,6 +634,7 @@ const PROXIMITY_RADIUS = 200 // meters
 
 const router = useRouter()
 const progressStore = useProgressStore()
+const navStore = useNavigationStore()
 const weather = useWeatherStore()
 
 const allTasks = ref([])
@@ -618,6 +666,11 @@ const evalResult = ref(null)
 const showParkModal = ref(false)
 const selectedPark = ref(null)
 const parkDistance = ref(null) // meters, or null while resolving
+// Proximity state for the park modal banner, mirroring the task
+// modal's locationStatus so the first card looks identical to the
+// other series: 'checking' | 'in_range' | 'out_of_range' | 'error'
+const parkProximity = ref('checking')
+const parkProximityMessage = ref('Checking your location...')
 
 // Location verification state
 const locationStatus = ref('checking') // 'checking' | 'in_range' | 'out_of_range' | 'error'
@@ -706,6 +759,39 @@ const parksProgress = computed(() => {
 const parksSeriesCompleted = computed(() =>
   parkCards.value.length > 0 && parkCards.value.every(p => p.done)
 )
+
+// ─── Active navigation (shared store) ───────────────────────
+// Tasks / parks reached via the Map keep a live route. The matching
+// card here is pulled to the front of its OWN series (series structure
+// unchanged), recoloured, and its corner button becomes a red X that
+// cancels — the only way to end navigation.
+function parkCardNavId(p) { return `park-${p.parkId}` }
+function taskNavId(t) { return `task-${t.taskId}` }
+function groupNavId(group) {
+  // A group is "navigating" when any of its (not-done) tasks is the
+  // active target — matches how a single-location card maps 1:1 and a
+  // multi-location card maps to whichever stop the user set off to.
+  const navId = navStore.navigatingId
+  if (!navId) return null
+  const hit = group.tasks.find(t => taskNavId(t) === navId)
+  return hit ? navId : null
+}
+
+const sortedParkCards = computed(() => {
+  const list = [...parkCards.value]
+  const navId = navStore.navigatingId
+  if (!navId) return list
+  const idx = list.findIndex(p => parkCardNavId(p) === navId)
+  if (idx > 0) {
+    const [active] = list.splice(idx, 1)
+    list.unshift(active)
+  }
+  return list
+})
+
+function cancelNavigation() {
+  navStore.cancel()
+}
 
 function parkSizeShort(parkHa) {
   if (!parkHa) return 'Park'
@@ -852,6 +938,20 @@ function getGroupedTasks(seriesId) {
       allDone: doneCount === groupTasks.length,
       someDone: doneCount > 0 && doneCount < groupTasks.length,
     })
+  }
+  return groups
+}
+
+// Same groups, but the one currently being navigated is pulled to the
+// front of THIS series (series order/structure otherwise unchanged).
+function getSortedGroupedTasks(seriesId) {
+  const groups = getGroupedTasks(seriesId)
+  const navId = navStore.navigatingId
+  if (!navId) return groups
+  const idx = groups.findIndex(g => g.tasks.some(t => taskNavId(t) === navId))
+  if (idx > 0) {
+    const [active] = groups.splice(idx, 1)
+    groups.unshift(active)
   }
   return groups
 }
@@ -1073,20 +1173,49 @@ function openParkModal(park) {
   selectedPark.value = park
   parkDistance.value = park.distance != null ? Math.round(park.distance) : null
   showParkModal.value = true
+  parkProximity.value = 'checking'
+  parkProximityMessage.value = 'Checking your location...'
   trackEvent('park_open', { parkId: park.parkId, parkName: park.parkName })
 
-  // Refine distance with a live GPS reading if we can
-  if (navigator.geolocation && park.latitude != null && park.longitude != null) {
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        parkDistance.value = Math.round(getDistanceMeters(
-          pos.coords.latitude, pos.coords.longitude,
-          park.latitude, park.longitude
-        ))
-      },
-      () => { /* keep API-provided distance */ },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
-    )
+  if (!navigator.geolocation || park.latitude == null || park.longitude == null) {
+    // No GPS / no coords: fall back to the API distance, shown the same
+    // orange "go there first" way as an out-of-range task.
+    applyParkProximity(parkDistance.value)
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const d = Math.round(getDistanceMeters(
+        pos.coords.latitude, pos.coords.longitude,
+        park.latitude, park.longitude
+      ))
+      parkDistance.value = d
+      applyParkProximity(d)
+    },
+    () => {
+      // Keep API-provided distance; still classify it for the banner.
+      applyParkProximity(parkDistance.value)
+    },
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+  )
+}
+
+// Classify a distance into the same banner states/wording the task
+// cards use, so the Parks Series first card stops looking different.
+function applyParkProximity(distMeters) {
+  if (distMeters == null) {
+    parkProximity.value = 'out_of_range'
+    parkProximityMessage.value = 'Please go to the park location first!'
+    return
+  }
+  if (distMeters <= PROXIMITY_RADIUS) {
+    parkProximity.value = 'in_range'
+    parkProximityMessage.value = `You're at the park (${distMeters}m away)`
+  } else {
+    parkProximity.value = 'out_of_range'
+    const distText = distMeters >= 1000 ? `${(distMeters / 1000).toFixed(1)}km` : `${distMeters}m`
+    parkProximityMessage.value = `You're ${distText} away. Please go to the task location first!`
   }
 }
 
@@ -1094,32 +1223,32 @@ function closeParkModal() {
   showParkModal.value = false
   selectedPark.value = null
   parkDistance.value = null
+  parkProximity.value = 'checking'
+  parkProximityMessage.value = 'Checking your location...'
 }
 
-function parkDistanceText() {
-  if (parkDistance.value == null) return 'Calculating distance...'
-  const d = parkDistance.value
-  return d < 1000 ? `${d}m away` : `${(d / 1000).toFixed(1)}km away`
-}
-
-function startParkAdventure() {
+// Plain park, no route: go through the shared map navigation flow
+// (destination pin + Cancel popup), exactly like a task's Navigate —
+// NOT the /adventure route view.
+function navigateToPark() {
   const park = selectedPark.value
-  if (!park) return
-  // Starting an adventure is intent, not arrival. The park only counts
-  // as visited once the user physically reaches it (GPS-verified on the
-  // map), so we no longer record a visit here.
-  trackEvent('park_adventure_start', { parkId: park.parkId, parkName: park.parkName })
+  if (!park || park.latitude == null || park.longitude == null) return
+  trackEvent('park_navigate', { parkId: park.parkId, parkName: park.parkName })
+  showParkModal.value = false
   router.push({
-    path: '/adventure',
+    path: '/map',
     query: {
-      parkId: String(park.parkId),
-      parkName: park.parkName,
+      navLat: String(park.latitude),
+      navLng: String(park.longitude),
+      navName: park.parkName,
+      navId: `park-${park.parkId}`,
     }
   })
 }
 
 onMounted(() => {
   progressStore.init()
+  navStore.load()
   loadOrFetchAllTasks()
   loadOrFetchAllParks()
   if (!localStorage.getItem(OB_KEY)) { showOb.value = true; obStep.value = 0 }
