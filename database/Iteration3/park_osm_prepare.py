@@ -1,8 +1,10 @@
 """
 Prepare OSM paths, entrances, and park boundaries for route generation.
 
-The export keeps parks with park_ha_level >= 8 and at least three non-landmark
-tasks. Route generation then uses these prepared files directly.
+The export keeps parks with park_ha_level >= 6 and at least three non-landmark
+tasks. For each selected park, it fetches walkable paths and entrances/gates from OSM using the Overpass API, 
+clips paths to the park boundary, and applies filters to exclude blocked access. 
+The results are saved as GeoJSON files for boundaries, internal roads, and gates/entrances. 
 """
 
 from __future__ import annotations
@@ -32,7 +34,7 @@ overpass_timeout = 180
 projected_crs = "EPSG:7855"
 wgs84_crs = "EPSG:4326"
 entrance_buffer_m = 35
-large_park_min_level = 8
+candidate_park_min_level = 6
 min_task_count = 3
 
 walkable_highways = [
@@ -58,13 +60,13 @@ walkable_routes = [
     "walking",
 ]
 
-
+# Define a function to select parks based on criteria and merge with boundaries
 def select_parks_for_osm_export() -> gpd.GeoDataFrame:
     parks = pd.read_csv(park_table_file, encoding="utf-8-sig")
     tasks = load_task_source_files()
 
     if "feature_source" in tasks.columns:
-        tasks = tasks[tasks["feature_source"].astype(str).str.lower() != "landmark"].copy()
+        tasks = tasks[tasks["feature_source"].astype(str).str.lower() != "landmark"].copy() # Exclude landmark tasks based on feature_source column if it exists
 
     counts = tasks.groupby("park_id").size().reset_index(name="task_count")
     parks["park_id"] = pd.to_numeric(parks["park_id"], errors="coerce")
@@ -74,7 +76,7 @@ def select_parks_for_osm_export() -> gpd.GeoDataFrame:
     merged["park_ha_level"] = pd.to_numeric(merged["park_ha_level"], errors="coerce")
 
     selected = merged[
-        (merged["park_ha_level"] >= large_park_min_level)
+        (merged["park_ha_level"] >= candidate_park_min_level)
         & (merged["task_count"] >= min_task_count)
     ].copy()
     selected = selected[["park_id", "park_name", "latitude", "longitude", "park_ha_level", "task_count"]]
@@ -110,7 +112,61 @@ def overpass_query(query: str) -> dict[str, Any]:
     response.raise_for_status()
     return response.json()
 
+# Define a function to create LineString geometry from an Overpass API element
+def line_geometry_from_overpass_element(element: dict[str, Any]) -> LineString | None:
+    coords = [
+        (float(point["lon"]), float(point["lat"]))
+        for point in element.get("geometry", [])
+        if "lon" in point and "lat" in point
+    ]
+    if len(coords) < 2:
+        return None
+    return LineString(coords)
 
+# Define a function to extract lineal geometry from a potentially complex geometry, returning None if no valid lineal geometry is found
+def lineal_geometry_or_none(geometry: Any) -> LineString | MultiLineString | None:
+    if geometry is None or geometry.is_empty:
+        return None
+    if isinstance(geometry, (LineString, MultiLineString)):
+        return geometry
+    if isinstance(geometry, GeometryCollection):
+        lines = []
+        for part in geometry.geoms:
+            if isinstance(part, LineString):
+                lines.append(part)
+            elif isinstance(part, MultiLineString):
+                lines.extend(part.geoms)
+        if not lines:
+            return None
+        return MultiLineString(lines) if len(lines) > 1 else lines[0]
+    return None
+
+
+def access_is_blocked(value: Any) -> bool:
+    return stringify_tag(value).lower() in {"private", "no"}
+
+
+def tag_value(row: Any, key: str) -> Any:
+    tags = row.get("tags") if hasattr(row, "get") else None
+    if isinstance(tags, dict) and key in tags:
+        return tags.get(key)
+    return row.get(key) if hasattr(row, "get") else None
+
+
+def osm_id_from_row(row: Any) -> str:
+    element_type = row.get("element_type") or row.get("osm_type") or "way"
+    osmid = row.get("osmid") if row.get("osmid") is not None else row.get("osm_id")
+    return f"{element_type}/{osmid}"
+
+
+def stringify_tag(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return ",".join(str(item) for item in value if item is not None)
+    return str(value)
+
+# Define a function to fetch walkable paths for a given park boundary using the Overpass API
 def fetch_walkable_paths_for_boundary(park_row: pd.Series) -> gpd.GeoDataFrame:
     boundary = park_row.geometry
     minx, miny, maxx, maxy = boundary.bounds
@@ -163,7 +219,7 @@ def fetch_walkable_paths_for_boundary(park_row: pd.Series) -> gpd.GeoDataFrame:
     roads["osm_display_id"] = roads.apply(osm_id_from_row, axis=1)
     return roads
 
-
+# Define a function to fetch entrances and gates for a given park boundary using the Overpass API
 def fetch_entrances_for_boundary(park_row: pd.Series) -> gpd.GeoDataFrame:
     boundary = park_row.geometry
     minx, miny, maxx, maxy = boundary.bounds
@@ -211,7 +267,7 @@ def fetch_entrances_for_boundary(park_row: pd.Series) -> gpd.GeoDataFrame:
     entrances["park_point_lat"] = float(park_row["latitude"])
     return entrances.drop_duplicates(subset=["osm_type", "osm_id"]).copy()
 
-
+# Main function to prepare OSM paths, entrances, and park boundaries for route generation
 def prepare_osm_internal_paths_and_entrances() -> tuple[gpd.GeoDataFrame, gpd.GeoDataFrame, gpd.GeoDataFrame, pd.DataFrame, list[tuple[str, str]]]:
     park_boundaries = select_parks_for_osm_export()
     park_boundary_frames = []
@@ -264,7 +320,7 @@ def prepare_osm_internal_paths_and_entrances() -> tuple[gpd.GeoDataFrame, gpd.Ge
             print(f"  - {park_name}: {error}")
     return park_boundaries_export, park_routes_export, park_entrances_export, summary, failed_parks
 
-
+# Define a function to format road rows with additional attributes for export
 def format_road_rows(routes: gpd.GeoDataFrame, park_row: pd.Series) -> gpd.GeoDataFrame:
     routes = routes.copy()
     routes["_geom_wkb"] = routes.geometry.apply(lambda geometry: geometry.wkb_hex)
@@ -294,7 +350,7 @@ def format_road_rows(routes: gpd.GeoDataFrame, park_row: pd.Series) -> gpd.GeoDa
     )
     return routes
 
-
+# Define a function to write the prepared boundaries, roads, and entrances to GeoJSON files
 def write_outputs(boundaries: gpd.GeoDataFrame, roads: gpd.GeoDataFrame, entrances: gpd.GeoDataFrame) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     boundaries.to_file(park_boundaries_output, driver="GeoJSON")
@@ -312,61 +368,6 @@ def build_summary(boundaries: gpd.GeoDataFrame, roads: gpd.GeoDataFrame, entranc
             {"layer": "gates_entrances", "count": len(entrances), "path": str(osm_entrances_output)},
         ]
     )
-
-
-def line_geometry_from_overpass_element(element: dict[str, Any]) -> LineString | None:
-    coords = [
-        (float(point["lon"]), float(point["lat"]))
-        for point in element.get("geometry", [])
-        if "lon" in point and "lat" in point
-    ]
-    if len(coords) < 2:
-        return None
-    return LineString(coords)
-
-
-def lineal_geometry_or_none(geometry: Any) -> LineString | MultiLineString | None:
-    if geometry is None or geometry.is_empty:
-        return None
-    if isinstance(geometry, (LineString, MultiLineString)):
-        return geometry
-    if isinstance(geometry, GeometryCollection):
-        lines = []
-        for part in geometry.geoms:
-            if isinstance(part, LineString):
-                lines.append(part)
-            elif isinstance(part, MultiLineString):
-                lines.extend(part.geoms)
-        if not lines:
-            return None
-        return MultiLineString(lines) if len(lines) > 1 else lines[0]
-    return None
-
-
-def access_is_blocked(value: Any) -> bool:
-    return stringify_tag(value).lower() in {"private", "no"}
-
-
-def tag_value(row: Any, key: str) -> Any:
-    tags = row.get("tags") if hasattr(row, "get") else None
-    if isinstance(tags, dict) and key in tags:
-        return tags.get(key)
-    return row.get(key) if hasattr(row, "get") else None
-
-
-def osm_id_from_row(row: Any) -> str:
-    element_type = row.get("element_type") or row.get("osm_type") or "way"
-    osmid = row.get("osmid") if row.get("osmid") is not None else row.get("osm_id")
-    return f"{element_type}/{osmid}"
-
-
-def stringify_tag(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, list):
-        return ",".join(str(item) for item in value if item is not None)
-    return str(value)
-
 
 if __name__ == "__main__":
     prepare_osm_internal_paths_and_entrances()
