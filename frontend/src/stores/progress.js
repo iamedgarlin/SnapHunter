@@ -457,6 +457,9 @@ export const useProgressStore = defineStore('progress', () => {
     localStorage.removeItem(DAILY_SERIES_KEY)
     localStorage.removeItem(DAILY_PARKS_KEY)
     localStorage.removeItem(ADVENTURE_PROGRESS_KEY)
+    // Permanent completed-task set (COMPLETED_TASKS_KEY, defined at
+    // module scope below — literal kept in sync with that constant).
+    localStorage.removeItem('snaphunter_completed_tasks')
   }
 
   return {
@@ -610,4 +613,52 @@ export function clearAdventureProgress(parkId, routeId) {
     delete all[adventureKey(parkId, routeId)]
     localStorage.setItem(ADVENTURE_PROGRESS_KEY, JSON.stringify(all))
   } catch { /* ignore */ }
+}
+
+// ─── Permanent completed-task set ───────────────────────────
+// Single source of truth for which Series tasks are done. A task is
+// the same backend entity wherever it's completed (Tasks page photo
+// OR a Park Adventure route photo waypoint, since the waypoint's id
+// IS the backend taskId), so completion is recorded here by taskId.
+//
+// Deliberately NOT date-scoped: a finished Series task stays finished
+// forever, like a badge. This is independent of SERIES_TASKS_KEY,
+// which only caches the task LIST for the day (saves a fetch) and
+// gets its `done` flags overwritten from this set on read. Decoupling
+// the two means completion survives the daily list refresh and does
+// not depend on whether the route or the Tasks page ran first.
+
+const COMPLETED_TASKS_KEY = 'snaphunter_completed_tasks'
+
+/**
+ * Return the set of completed task ids (as strings) for O(1) lookup.
+ * @returns {Set<string>}
+ */
+export function loadCompletedTaskIds() {
+  try {
+    const arr = JSON.parse(localStorage.getItem(COMPLETED_TASKS_KEY) || '[]')
+    return new Set(Array.isArray(arr) ? arr.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+/**
+ * Mark a task as permanently completed. Idempotent — calling it again
+ * for an already-completed task is a no-op. Returns true only the
+ * first time a given task is recorded (useful for one-shot side
+ * effects like awarding XP), false if it was already done.
+ * @param {number|string} taskId
+ * @returns {boolean} true if this call newly completed the task
+ */
+export function markTaskCompleted(taskId) {
+  if (taskId == null) return false
+  const id = String(taskId)
+  const set = loadCompletedTaskIds()
+  if (set.has(id)) return false
+  set.add(id)
+  try {
+    localStorage.setItem(COMPLETED_TASKS_KEY, JSON.stringify([...set]))
+  } catch { /* ignore */ }
+  return true
 }

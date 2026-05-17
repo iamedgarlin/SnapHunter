@@ -282,6 +282,7 @@ import { useProgressStore } from '../stores/progress'
 import {
     saveAdventureProgress, loadAdventureProgress,
     loadLatestAdventureForPark, clearAdventureProgress,
+    loadCompletedTaskIds, markTaskCompleted,
 } from '../stores/progress'
 import { useShake, useSpin, useSky, useStep } from '../composables/useSensors'
 import { trackEvent } from '../services/analytics'
@@ -776,14 +777,67 @@ function startGeoWatch() {
 }
 
 // ─── Task completion ────────────────────────────────────────
+
+// A photo waypoint's `waypointId` IS the backend taskId of a Series
+// task. Record it in the permanent completed-task set (the shared
+// source of truth, decoupled from the day-scoped task-list cache) so
+// the Tasks page reflects it regardless of order or day. Returns
+// whether this was a NEW completion, so XP/streak aren't double-paid
+// if the same task was already finished on the Tasks page.
+//
+// Series badge: ParkAdventureView has no full task list, but the
+// Tasks page caches one under SERIES_TASKS_KEY (taskId + seriesId).
+// Combine that list with the permanent set to tell if every task in
+// the series is now done — same rule TasksView.handleCompleteTask
+// uses. If the cache is absent we skip the badge here; the Tasks page
+// re-checks it from authoritative data on its next mount.
+const SERIES_TASKS_KEY = 'snaphunter_series_all_tasks'
+
+function syncPhotoTaskCompletion(taskId) {
+    const isNew = markTaskCompleted(taskId)
+
+    let saved
+    try {
+        saved = JSON.parse(localStorage.getItem(SERIES_TASKS_KEY) || 'null')
+    } catch {
+        saved = null
+    }
+    if (saved && Array.isArray(saved.tasks)) {
+        const task = saved.tasks.find(t => String(t.taskId) === String(taskId))
+        const seriesId = task?.seriesId
+        const seriesKey = seriesId === 1 ? 'nature' : seriesId === 2 ? 'urban' : seriesId === 3 ? 'art' : null
+        if (seriesKey) {
+            const doneIds = loadCompletedTaskIds()
+            const seriesTasks = saved.tasks.filter(t => t.seriesId === seriesId)
+            if (seriesTasks.length > 0 && seriesTasks.every(t => doneIds.has(String(t.taskId)))) {
+                progressStore.earnBadge(seriesKey)
+            }
+        }
+    }
+    return isNew
+}
+
 function completeCurrentTask() {
     const wp = currentWp.value
     if (!wp || wp.completed) return
 
     wp.completed = true
-    earnedXp.value += wp.xpReward || 20
-    progressStore.addXp(wp.xpReward || 20)
-    progressStore.completeTask(0)
+
+    // Photo waypoints are real Series tasks; sensor waypoints have
+    // synthetic ids (`sensor-...`) with no backend task, so they only
+    // ever count as adventure XP and are not synced.
+    let awardXp = true
+    if (wp.taskType === 'photo') {
+        // Only pay XP/streak if this task wasn't already completed
+        // elsewhere (keeps it equivalent to a Tasks-page photo).
+        awardXp = syncPhotoTaskCompletion(wp.waypointId)
+    }
+
+    if (awardXp) {
+        earnedXp.value += wp.xpReward || 20
+        progressStore.addXp(wp.xpReward || 20)
+        progressStore.completeTask(0)
+    }
 
     stopActiveSensor()
     sensorStarted.value = false
@@ -967,8 +1021,6 @@ async function tryResumeOnMount() {
     if (!saved || !Array.isArray(saved.waypoints) || !saved.waypoints.length) return false
     if (saved.waypoints.every(w => w.completed)) return false
 
-    // Rebuild a minimal selectedRoute object from the saved metadata so the
-    // active phase header + persistence keep working.
     selectedRoute.value = {
         routeId: saved.routeId,
         difficulty: saved.difficulty || 'easy',

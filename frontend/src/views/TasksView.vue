@@ -618,6 +618,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { useProgressStore } from '../stores/progress'
+import { loadCompletedTaskIds, markTaskCompleted } from '../stores/progress'
 import { useNavigationStore } from '../stores/navigation'
 import { useWeatherStore } from '../stores/weather'
 import { trackEvent } from '../services/analytics'
@@ -826,6 +827,17 @@ function saveCachedSeriesTasks(tasks) {
 
 // ─── Fetch tasks ────────────────────────────────────────────
 
+// Overwrite each task's `done` from the permanent completed-task set.
+// This set — not the day-scoped SERIES_TASKS_KEY cache — is the source
+// of truth for completion, so a finished task stays finished across
+// the daily list refresh and regardless of whether it was completed
+// here or on a Park Adventure route. Applied on BOTH paths (fresh
+// fetch and cached read) so the two can never disagree.
+function applyCompletedFlags(tasks) {
+  const doneIds = loadCompletedTaskIds()
+  return tasks.map(t => ({ ...t, done: doneIds.has(String(t.taskId)) }))
+}
+
 async function fetchAllTasks() {
   loadingTasks.value = true
   try {
@@ -836,7 +848,7 @@ async function fetchAllTasks() {
           .catch(() => [])
       )
     )
-    allTasks.value = results.flat().map(t => ({ ...t, done: false }))
+    allTasks.value = applyCompletedFlags(results.flat())
     saveCachedSeriesTasks(allTasks.value)
   } catch (e) {
     console.error('Failed to fetch tasks:', e)
@@ -848,7 +860,10 @@ async function fetchAllTasks() {
 async function loadOrFetchAllTasks() {
   const cached = loadCachedSeriesTasks()
   if (cached && cached.length > 0) {
-    allTasks.value = cached
+    // Cache holds only the task LIST for today; completion comes from
+    // the permanent set, so re-apply it (the cache's own `done` flags
+    // may be stale relative to routes completed since it was written).
+    allTasks.value = applyCompletedFlags(cached)
   } else {
     await fetchAllTasks()
   }
@@ -1123,17 +1138,24 @@ async function handlePhotoCapture(event) {
 function handleCompleteTask() {
   const task = allTasks.value.find(t => t.taskId === selectedTask.value.taskId)
   if (task) {
+    // Record in the permanent set first. `isNew` is false if this task
+    // was somehow already completed (e.g. finished earlier on a route),
+    // so we don't double-count XP / streak for the same task.
+    const isNew = markTaskCompleted(task.taskId)
+
     task.done = true
 
-    // Update progress
-    progressStore.completeTask(task.rewardPoint || 10)
+    if (isNew) {
+      // Update progress
+      progressStore.completeTask(task.rewardPoint || 10)
 
-    // Check sunny day badge
-    if (weather.desc === 'Clear sky') {
-      progressStore.completeSunnyTask()
+      // Check sunny day badge
+      if (weather.desc === 'Clear sky') {
+        progressStore.completeSunnyTask()
+      }
     }
 
-    // Check series completion
+    // Check series completion (safe to re-check even if not new)
     const seriesId = task.seriesId
     if (seriesId) {
       const seriesKey = seriesId === 1 ? 'nature' : seriesId === 2 ? 'urban' : 'art'
@@ -1227,9 +1249,6 @@ function closeParkModal() {
   parkProximityMessage.value = 'Checking your location...'
 }
 
-// Plain park, no route: go through the shared map navigation flow
-// (destination pin + Cancel popup), exactly like a task's Navigate —
-// NOT the /adventure route view.
 function navigateToPark() {
   const park = selectedPark.value
   if (!park || park.latitude == null || park.longitude == null) return

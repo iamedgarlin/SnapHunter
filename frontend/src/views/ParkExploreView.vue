@@ -57,7 +57,7 @@
         </div>
         <PhTrophy :size="48" weight="duotone" color="#f59e0b" />
         <p class="celebration-title">Amazing, {{ userName }}!</p>
-        <p class="celebration-sub">You found all {{ storyData.tasks.length }} Time Fragments!</p>
+        <p class="celebration-sub">You found all {{ storyData.tasks.length }} secrets on the Time Traveler's Map!</p>
         <div class="celebration-xp">
           <PhLightning :size="16" weight="duotone" color="#f59e0b" />
           <span>+{{ totalXp }} XP earned</span>
@@ -123,6 +123,12 @@
             <PhMagnifyingGlass :size="10" weight="bold" color="white" />
             <span>{{ currentTask.refPhoto }}</span>
           </div>
+        </div>
+        <!-- Photo placeholder (shown until a real refPhotoUrl is added) -->
+        <div v-else class="drawer-photo-empty">
+          <PhImage :size="22" weight="duotone" color="#94a3b8" />
+          <span>{{ currentTask.refPhoto }}</span>
+          <span class="drawer-photo-empty-sub">Photo coming soon</span>
         </div>
         <!-- Edu cards scroll -->
         <div v-if="currentTask.eduCards?.length" class="drawer-edu-scroll">
@@ -241,63 +247,66 @@ const PARK_TO_BADGE = {
 }
 
 // ─── Story Data ──────────────────────────────────────────────
+// Tasks, questions and answers are FIXED in the system prompt
+// (see buildSystemPrompt). storyData only drives the on-screen UI:
+// progress dots, task labels, hint drawer cards and reference photos.
+// Keep task ids in sync with the [TASK_COMPLETE:{id}] markers in the prompt.
 // Future: fetch from API by parkId
 const storyData = ref({
   parkId: 2,
   parkName: 'Fitzroy Gardens',
-  title: 'The Time Fragments',
+  title: "The Time Traveler's Map",
   tasks: [
     {
-      id: 'scar-tree',
-      name: 'Secret of the Ancient Tree',
-      refPhoto: 'Scarred Tree Trunk',
-      refPhotoUrl: 'https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=400&h=200&fit=crop',
+      id: 'task_1_cooks_cottage',
+      name: "Cooks' Cottage",
+      refPhoto: 'Ivy Stone Cottage',
+      refPhotoUrl: 'https://tp35kids.blob.core.windows.net/images/cook.png',
       xp: 30,
       eyeRestSec: 20,
       completed: false,
       eduCards: [
-        { id: 'history', color: '#b45309', title: 'Aboriginal Heritage', desc: 'Indigenous Australians used bark from trees to build canoes and shelters for thousands of years.' },
-        { id: 'shape', color: '#7c3aed', title: 'Shape Hunt', desc: 'The scar is long and oval-shaped, just like the canoe it became!' },
+        { id: 'history', color: '#b45309', title: 'A House That Sailed', desc: 'This cottage is over 270 years old. It was taken apart in England and shipped to Melbourne in pieces.' },
+        { id: 'puzzle', color: '#7c3aed', title: 'The Big Puzzle', desc: 'Every brick was numbered! 253 boxes and 40 barrels sailed across the world like a giant jigsaw.' },
       ],
     },
     {
-      id: 'tudor-village',
-      name: 'Counting in Tiny Town',
+      id: 'sub_task_2a_scar_tree',
+      name: 'The Scar Tree',
+      refPhoto: 'Scarred Eucalyptus Trunk',
+      refPhotoUrl: 'https://tp35kids.blob.core.windows.net/images/tree.webp',
+      xp: 20,
+      eyeRestSec: 20,
+      completed: false,
+      eduCards: [
+        { id: 'canoe', color: '#16a34a', title: 'The Bark Canoe', desc: 'The Wurundjeri people cut bark from this tree to make canoes for the Yarra River — for over 40,000 years.' },
+        { id: 'scar', color: '#0d9488', title: 'A Message, Not Damage', desc: 'The long curved scar is not a wound. It is a sign left by people from the past.' },
+      ],
+    },
+    {
+      id: 'sub_task_2b_tudor_village',
+      name: 'The Tiny Village',
       refPhoto: 'Model Tudor Village',
-      refPhotoUrl: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400&h=200&fit=crop',
-      xp: 35,
+      refPhotoUrl: 'https://tp35kids.blob.core.windows.net/images/house.jpg',
+      xp: 20,
       eyeRestSec: 20,
       completed: false,
       eduCards: [
-        { id: 'colors', color: '#dc2626', title: 'Color Guide', desc: 'RED roofs look bright and warm. Can you tell red apart from brown and orange?' },
-        { id: 'math', color: '#2563eb', title: 'Math Challenge', desc: '5 red roofs + 3 brown roofs = 8 roofs total!' },
-        { id: 'history', color: '#b45309', title: 'History', desc: 'This tiny village was a gift to Melbourne after World War II, built brick by tiny brick!' },
+        { id: 'village', color: '#2563eb', title: 'A Thank-You Village', desc: 'About 23 tiny buildings, sent from London in 1948 to thank Melbourne for sending food after WWII.' },
+        { id: 'count', color: '#7c3aed', title: 'Count Them All', desc: 'A church, a school, a hotel, lots of cottages — even a tiny model of Shakespeare\'s house.' },
       ],
     },
     {
-      id: 'fairies-tree',
-      name: 'The Animal Party',
-      refPhoto: "Fairies' Tree Carvings",
-      refPhotoUrl: 'https://images.unsplash.com/photo-1518882460567-78ef8e3e7e32?w=400&h=200&fit=crop',
+      id: 'task_3_playground',
+      name: 'Giraffe & Dinosaur',
+      refPhoto: 'Playground Fun',
+      refPhotoUrl: 'https://tp35kids.blob.core.windows.net/images/park.jpg',
       xp: 30,
       eyeRestSec: 20,
       completed: false,
       eduCards: [
-        { id: 'animals', color: '#16a34a', title: 'Aussie Animals', desc: 'Look for koalas, possums, kookaburras, and fairy wrens carved into the bark!' },
-        { id: 'art', color: '#7c3aed', title: 'Art Fact', desc: 'Sculptor Ola Cohn carved these figures in the 1930s on a 300-year-old tree stump.' },
-      ],
-    },
-    {
-      id: 'cooks-cottage',
-      name: 'The Travelling House',
-      refPhoto: "Captain Cook's Cottage",
-      refPhotoUrl: 'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&h=200&fit=crop',
-      xp: 35,
-      eyeRestSec: 20,
-      completed: false,
-      eduCards: [
-        { id: 'geo', color: '#2563eb', title: 'Geography', desc: 'England is over 16,000 km from Melbourne! The bricks traveled by ship for months.' },
-        { id: 'math', color: '#16a34a', title: 'Big Numbers', desc: '253 crates × 50 kg each = 12,650 kg total! That is heavier than 2 elephants!' },
+        { id: 'play', color: '#f59e0b', title: 'You Earned It!', desc: 'Go play on the giraffe swing and the dinosaur slide. Look up at the sky now and then — that rests your eyes too!' },
+        { id: 'recap', color: '#7c3aed', title: 'Secrets You Found', desc: 'A cottage that crossed an ocean, a 40,000-year-old canoe scar, and a tiny thank-you village.' },
       ],
     },
   ],
@@ -333,6 +342,22 @@ let hasGreeted = false
 // to prevent duplicate awards if celebration triggers multiple times
 let epicBadgeAwarded = false
 
+// Guards the one-shot auto-disconnect after all tasks are complete,
+// so a repeated celebration call cannot schedule it twice.
+let geminiClosing = false
+let autoCloseTimer = null
+// True between "all tasks done" and the actual disconnect. The disconnect
+// waits for Ollie to finish speaking so the closing line isn't cut off.
+let pendingClose = false
+
+// Task ids actually completed during THIS playthrough. This — not the
+// task.completed flag — is the source of truth for XP settlement.
+// `loadProgress()` sets task.completed=true for tasks finished on a
+// PREVIOUS visit, so settling off `.completed` would either double-pay
+// or (with the old _xpSettled guard) never pay. sessionDone only ever
+// contains tasks the user genuinely finished this session.
+const sessionDone = new Set()
+
 // ─── Computed ────────────────────────────────────────────────
 const currentTask = computed(() => storyData.value.tasks[currentTaskIndex.value])
 const completedCount = computed(() => storyData.value.tasks.filter(t => t.completed).length)
@@ -354,6 +379,12 @@ function loadProgress() {
       storyData.value.tasks.forEach(t => {
         if (doneSet.has(t.id)) t.completed = true
       })
+      // NOTE: do NOT set t._xpSettled here. _xpSettled is a per-SESSION
+      // guard owned by settleXp() so the same task can't pay out twice
+      // within one playthrough. Marking restored tasks as settled would
+      // permanently block XP every time the user re-enters a park they
+      // finished before — which is exactly the "XP never adds up" bug.
+      // Re-playing a park is allowed to award XP again by design.
       const firstIncomplete = storyData.value.tasks.findIndex(t => !t.completed)
       currentTaskIndex.value = firstIncomplete >= 0 ? firstIncomplete : storyData.value.tasks.length - 1
     }
@@ -363,6 +394,37 @@ function loadProgress() {
 function saveProgress() {
   const completedTasks = storyData.value.tasks.filter(t => t.completed).map(t => t.id)
   localStorage.setItem(`${EXPLORE_KEY}_${storyData.value.parkId}`, JSON.stringify({ completedTasks }))
+}
+
+// Ids already paid out this session — internal guard so settleXp() is
+// safe to call repeatedly from many exit paths without double counting.
+const xpPaid = new Set()
+
+/**
+ * Settle every task the user finished THIS session that hasn't been paid
+ * out yet. Idempotent (xpPaid guard), so it's safe to call from task
+ * complete, celebration, auto-disconnect, manual exit and unmount — the
+ * voice model often forgets update_task_progress, so we settle on every
+ * path that leaves the screen.
+ *
+ * Uses sessionDone (tasks finished THIS playthrough), NOT task.completed
+ * — loadProgress() marks previously-finished tasks complete, so settling
+ * off .completed would mis-pay.
+ *
+ * IMPORTANT: progressStore.completeTask(xp), NOT addXp(xp). addXp only
+ * bumps xp; completeTask also increments totalTasksCompleted, updates the
+ * daily streak and unlocks first_step / on_fire / week_warrior. Using
+ * addXp left totalTasksCompleted at 0 and the streak frozen, which is why
+ * progress "looked" unsaved even though xp was correct.
+ */
+function settleXp() {
+  for (const taskId of sessionDone) {
+    if (xpPaid.has(taskId)) continue
+    xpPaid.add(taskId)
+    const t = storyData.value.tasks.find(x => x.id === taskId)
+    progressStore.completeTask(t?.xp || 30)
+    trackEvent('explore_task_complete', { parkId: storyData.value.parkId, taskId })
+  }
 }
 
 // ─── System Prompt Builder ───────────────────────────────────
@@ -375,27 +437,147 @@ function buildSystemPrompt() {
     eduCards: t.eduCards?.map(c => c.desc) || [],
   }))
 
-  return `You are Ollie the Owl, a friendly and enthusiastic voice guide for children aged 5-12.
-You are leading a child named "${userName.value}" through an outdoor scavenger hunt called "The Time Fragments" at ${storyData.value.parkName}.
+  return `# ROLE & IDENTITY
+You are Ollie, a wise and playful owl who lives in ${storyData.value.parkName}.
+You are guiding a child (aged 5-8) named "${userName.value}" on a magical outdoor adventure called "The Time Traveler's Map".
+Speak like a warm, excited storyteller — short sentences, full of wonder.
+Never sound like a teacher or an app.
 
-RULES:
-- Speak in short, simple sentences (2-3 at a time), then wait for the child to respond
-- Be warm, encouraging, and playful like a fun teacher
-- For each task, describe what the child should look for, then ask the question
-- When the child answers CORRECTLY, call update_task_progress with the taskId and nextAction "eye_rest"
-- If the child answers WRONG, give a gentle hint and let them try again (max 3 hints, then reveal answer)
-- Never reveal the answer on the first wrong attempt
-- For the LAST task (${storyData.value.tasks[storyData.value.tasks.length - 1].id}), use nextAction "celebration" instead of "eye_rest"
-- After eye rest, the app automatically advances. Then introduce the next task naturally.
-- Do NOT talk about screen time, myopia, or health. Focus on fun exploration and learning.
-- If the child goes off topic, gently guide them back
+---
 
-TASKS (complete them in order):
+# LANGUAGE (STRICT)
+- Speak ONLY in English. Always. From the very first word.
+- Do NOT switch to any other language, even if the child speaks another language, asks you to, or uses other-language words.
+- If the child speaks another language, gently reply in simple English and continue in English.
+- Never comment on language.
+
+---
+
+# FIXED CONVERSATION RULES
+- Maximum 2-3 sentences per turn. Then STOP and wait for the child to speak.
+- If the child is silent for 5+ seconds, say once: "Still there, explorer?"
+- Wrong answer x 1 -> give hint. Wrong answer x 2 -> rephrase hint from a different angle.
+- Accept synonyms and near-correct answers (see validation_hint in each task).
+- If the child goes off-topic, respond warmly in 1 sentence, then redirect with a question.
+- If the child says they are hurt, lost, or scared -> stop everything and say:
+  "Let's pause! Can you find a grown-up near you right now?"
+
+---
+
+# APP STATE SIGNALS (CRITICAL)
+The app advances the game ONLY through the update_task_progress tool. You MUST call it — do not just say the words.
+- Task 1 correct -> update_task_progress(taskId="task_1_cooks_cottage", nextAction="eye_rest")
+- Task 2 sub-task A correct -> update_task_progress(taskId="sub_task_2a_scar_tree", nextAction="next_task")  (this moves to the village, NO eye rest)
+- Task 2 sub-task B correct -> update_task_progress(taskId="sub_task_2b_tudor_village", nextAction="eye_rest")
+- Task 3 (FINAL) correct -> update_task_progress(taskId="task_3_playground", nextAction="celebration")
+- After a tool call, the app handles the eye-rest / transition and advances automatically. Just deliver the eye_rest_cue or transition_cue; do not announce the next task yourself.
+- Do NOT call the tool on a wrong answer or mid-task.
+
+---
+
+# PARK CONTEXT
+- PARK: ${storyData.value.parkName}, Melbourne
+- STORY: The Time Traveler's Map
+- TOTAL TASKS: 3
+
+---
+
+# STORY INTRO
+Deliver this once at the very beginning, before Task 1. Keep it to 3 sentences maximum.
+"Welcome, explorer ${userName.value}! I'm Ollie, and I've been watching over ${storyData.value.parkName} for a very, very long time. Today we are going on a Time Traveler's Map adventure — three secrets are hidden in this park, and only YOU can find them. Are you ready? Let's go!"
+
+---
+
+# TASK 1
+{
+  "id": "task_1_cooks_cottage",
+  "name": "Cooks' Cottage",
+  "progress": "Task 1 of 3",
+  "nav_cue": "Walk toward the small stone cottage with ivy on its walls — it looks like it belongs in a fairy tale. Stand outside the front gate.",
+  "type": "choice",
+  "question": "This little cottage is over 270 years old and it sailed here all the way from England! Workers had to take it apart piece by piece before packing it into boxes. What do you think they did to every single brick so they knew where it belonged? Did they paint them, number them, or throw them away?",
+  "options": ["painted them", "numbered them", "threw them away"],
+  "answer": "numbered them",
+  "validation_hint": "Accept if child says numbered, wrote numbers on them, labelled them, or marked them.",
+  "hint": "Think about it — if you had hundreds of bricks that all looked the same, how would you remember which one goes where when you unpack them on the other side of the world?",
+  "hint_2": "Imagine doing the world's biggest jigsaw puzzle. You would need to write something on every piece so you knew exactly where it belonged. What would you write?",
+  "edu_content": "They numbered every single brick! Over 250 boxes and 40 barrels sailed from England to Melbourne. The builders used those numbers like a giant puzzle to put the cottage back together exactly as it was. Can you imagine moving your whole house to the other side of the world?",
+  "eye_rest_cue": "Now step back and look at the tallest tree behind the cottage. How many branches can you count right at the very top? Keep looking up for twenty seconds!"
+}
+
+---
+
+# TASK 2 (TWO sub-tasks — each one calls the tool separately, see NOTE below)
+{
+  "group": "scar_tree_and_village (NOT a tool id — use the sub-task ids)",
+  "name": "Scar Tree and Tiny Village",
+  "progress": "Task 2 of 3",
+  "nav_cue": "Walk toward the big open lawn and look for a tall eucalyptus tree with a long dark scar on its trunk — like an old wound that never healed. Stand right in front of it.",
+  "sub_tasks": [
+    {
+      "id": "sub_task_2a_scar_tree",
+      "question": "You can see the Wurundjeri people carefully cut away a piece of bark from this tree long ago. What do you think they made with it? A canoe, a shelter, or a fire?",
+      "options": ["canoe", "shelter", "fire"],
+      "answer": "canoe",
+      "validation_hint": "Accept if child says canoe, boat, vessel, or any water transport.",
+      "hint": "Look at the shape of the scar — it's long, curved, and hollow. Imagine sitting inside something that shape on the water...",
+      "hint_2": "The Yarra River is very close to this park. The Wurundjeri people needed to cross that water. What could you build from one big curved piece of bark?",
+      "edu_content": "A bark canoe! The Wurundjeri paddled these along the Yarra River for fishing and visiting family — for over 40,000 years. This scar is not damage. It is a message from the past, left right here on this tree.",
+      "transition_cue": "Now walk just a little further — there is something even more magical hiding nearby. Look for a tiny village behind a low fence. The little houses only come up to your knees!"
+    },
+    {
+      "id": "sub_task_2b_tudor_village",
+      "question": "This tiny village was made by a 77-year-old man in England as a thank-you gift to Melbourne — he built every single building by hand! How many little buildings can you count inside the fence?",
+      "answer": "around 23",
+      "validation_hint": "Accept any number between 20 and 25. Mark it correct, then tell them the real answer is about 23.",
+      "hint": "Start at one end of the fence and work your way around. Count every rooftop — big ones and tiny ones both count. Don't count the same one twice!",
+      "hint_2": "Can you spot the little church with the tall steeple? Start with that one, then count all the buildings around it.",
+      "edu_content": "About 23 buildings — there is a church, a school, a hotel, lots of cottages, and even a tiny model of William Shakespeare's house! This village was sent from London in 1948 as a thank-you, because Melbourne sent food to hungry people in England after World War Two. A whole village, given in return for kindness."
+    }
+  ],
+  "eye_rest_cue": "Now look past the village and find the farthest tree at the very edge of the gardens. Stare at it for twenty seconds — can you see any animals hiding in the branches?"
+}
+NOTE for Task 2: After sub_task_2a is correct, give its edu_content, call update_task_progress(taskId="sub_task_2a_scar_tree", nextAction="next_task"), then deliver the transition_cue (NO eye rest yet). Then ask sub_task_2b. After sub_task_2b is correct, give its edu_content, call update_task_progress(taskId="sub_task_2b_tudor_village", nextAction="eye_rest"), then deliver the eye_rest_cue.
+
+---
+
+# TASK 3 (FINAL)
+{
+  "id": "task_3_playground",
+  "name": "Giraffe and Dinosaur",
+  "progress": "Task 3 of 3",
+  "nav_cue": "Head to the playground — look for the tall giraffe swing and the big dinosaur slide. They are hard to miss!",
+  "type": "play",
+  "play_instruction": "You have discovered so many secrets today — a cottage that crossed an ocean in numbered boxes, a 40,000-year-old canoe scar, and a tiny thank-you village from England! Now it is time to celebrate. Go play on the giraffe swing and the dinosaur slide. Ollie will be watching from the trees. Come back and tell me which one was your favourite!",
+  "validation_hint": "When the child returns and says ANYTHING, mark the task complete immediately. Do not quiz them.",
+  "closing_celebration": "You are a true ${storyData.value.parkName} explorer! You now know secrets that most people who walk through this park never find out — the Wurundjeri people were here first, a cottage crossed an ocean in pieces, and a kind old man built a tiny village as a thank-you. This park holds thousands of years of stories, and YOU know all of them.",
+  "eye_rest_cue": "While you are playing, look up at the sky every now and then — that is your eye rest built right into playtime!"
+}
+NOTE for Task 3: Read the play_instruction and go quiet. When the child returns and says anything, give the closing_celebration and call update_task_progress(taskId="task_3_playground", nextAction="celebration").
+
+---
+
+# EXECUTION ORDER (follow exactly, do not skip or reorder)
+1. Deliver STORY INTRO.
+2. Read Task 1 nav_cue. Ask the question. Wait.
+3. On correct -> edu_content, then update_task_progress(task_1_cooks_cottage, "eye_rest"), then eye_rest_cue.
+4. Read Task 2 nav_cue. Ask sub_task_2a question. Wait.
+5. On correct -> edu_content, then update_task_progress(sub_task_2a_scar_tree, "next_task"), then transition_cue. (No eye rest yet.)
+6. Ask sub_task_2b question. Wait.
+7. On correct -> edu_content, then update_task_progress(sub_task_2b_tudor_village, "eye_rest"), then eye_rest_cue.
+8. Read Task 3 nav_cue + play_instruction. Go quiet and wait.
+9. When the child returns and speaks -> closing_celebration, then update_task_progress(task_3_playground, "celebration").
+10. After the final tool call, stay warm and present. Do not start anything new.
+
+---
+
+# CURRENT GAME STATE (from the app)
+TASKS:
 ${JSON.stringify(tasksJson, null, 2)}
 
 Current task index: ${currentTaskIndex.value}
 
-Start by greeting ${userName.value} warmly and introducing the first uncompleted task.`
+Start now, in English, by greeting ${userName.value} warmly with the STORY INTRO, then introduce the first uncompleted task.`
 }
 
 // ─── Logic ───────────────────────────────────────────────────
@@ -412,10 +594,23 @@ function startExploring() {
         wsState.value = 'connected'
         isOwlTalking.value = false
 
+        // All tasks done and Ollie just finished the closing speech
+        // (turnComplete -> listening). Now it's safe to disconnect
+        // without cutting the last sentence off.
+        if (pendingClose) {
+          doAutoDisconnect()
+          return
+        }
+
         if (!hasGreeted && gemini) {
           hasGreeted = true
           isListening.value = false
           currentTranscript.value = 'Ollie is getting ready...'
+          // The greeting is an EMPTY user turn (silence) — the Constrained
+          // endpoint does not support sending text, so the opening language
+          // is controlled entirely by the system prompt. The "# LANGUAGE
+          // (STRICT)" block + "Start now, in English ..." line in
+          // buildSystemPrompt() are what lock the first turn to English.
           gemini.triggerGreeting()
         } else {
           isListening.value = true
@@ -463,14 +658,29 @@ function toggleDrawer() {
 // ─── Gemini function call handler ────────────────────────────
 function handleGeminiFunctionCall(payload) {
   if (payload.name === 'update_task_progress') {
-    const taskId = payload.args.taskId
     const nextAction = payload.args.nextAction
 
-    const task = storyData.value.tasks.find(t => t.id === taskId)
-    if (task) {
+    // IMPORTANT: Gemini is a voice model and the taskId it sends back is
+    // unreliable — it often returns an approximate / shortened id (e.g.
+    // "task_2" or "scar_tree") that does NOT exactly match our ids. If we
+    // trusted it for `.find()`, the lookup failed silently and XP was
+    // never awarded (the "Back to Map shows no XP" bug).
+    // Source of truth = the CURRENT task. Gemini only tells us *when* the
+    // child answered correctly; *which* task it is comes from our own
+    // currentTaskIndex. Fall back to a fuzzy id match only if needed.
+    let task = currentTask.value
+    if (!task || task.completed) {
+      const rawId = String(payload.args.taskId || '')
+      const fuzzy = storyData.value.tasks.find(
+        t => !t.completed && (t.id === rawId || t.id.includes(rawId) || rawId.includes(t.id))
+      )
+      if (fuzzy) task = fuzzy
+    }
+
+    if (task && !task.completed) {
       task.completed = true
-      progressStore.addXp(task.xp || 30)
-      trackEvent('explore_task_complete', { parkId: storyData.value.parkId, taskId })
+      sessionDone.add(task.id)
+      settleXp()
     }
 
     saveProgress()
@@ -480,24 +690,62 @@ function handleGeminiFunctionCall(payload) {
     } else if (nextAction === 'next_task') {
       advanceToNextTask()
     } else if (nextAction === 'celebration') {
+      // FINAL settlement (safety net). The voice model often narrates a
+      // long edu_content and FORGETS to call update_task_progress for the
+      // earlier tasks — so by the time it calls "celebration", several
+      // tasks may still be unmarked. The child reached the end, so credit
+      // every task this session, then settle (idempotent).
+      storyData.value.tasks.forEach(t => {
+        t.completed = true
+        sessionDone.add(t.id)
+      })
+      settleXp()
+      saveProgress()
+
       // All tasks completed - show celebration UI
-      currentTranscript.value = `Amazing ${userName.value}! You found all the Time Fragments!`
+      currentTranscript.value = `Amazing ${userName.value}! You found every secret on the Time Traveler's Map!`
       isOwlTalking.value = true
-      setTimeout(() => { isOwlTalking.value = false }, 3000)
 
       // Award epic park badge (only once per session to prevent duplicates)
       if (!epicBadgeAwarded) {
         epicBadgeAwarded = true
         const badgeId = PARK_TO_BADGE[storyData.value.parkId]
         if (badgeId) {
-          // Pass 0 XP because XP was already awarded per-task via addXp above
+          // Pass 0 XP because XP was already awarded per-task above
           progressStore.completeEpicPark(badgeId, 0)
         }
       }
 
       trackEvent('explore_complete', { parkId: storyData.value.parkId })
+
+      // Auto-disconnect once everything is done — but DON'T hard-cut on a
+      // fixed timer (Ollie's closing speech can be long and gets chopped).
+      // Instead arm a "pending close": the disconnect happens when Ollie
+      // finishes talking (speaking -> listening, i.e. turnComplete). A long
+      // safety timeout only fires if that transition never arrives.
+      if (gemini && !geminiClosing) {
+        geminiClosing = true
+        pendingClose = true
+        autoCloseTimer = setTimeout(() => {
+          autoCloseTimer = null
+          doAutoDisconnect()
+        }, 45000)
+      }
     }
   }
+}
+
+function doAutoDisconnect() {
+  if (!pendingClose) return
+  pendingClose = false
+  if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null }
+  // Final safety net: settle any completed-but-unsettled task before we
+  // tear down (idempotent — no double counting).
+  settleXp()
+  if (gemini) { gemini.disconnect(); gemini = null }
+  wsState.value = 'disconnected'
+  isOwlTalking.value = false
+  isListening.value = false
 }
 
 function advanceToNextTask() {
@@ -542,6 +790,11 @@ function mockSuccess() {
 }
 
 function handleExit() {
+  pendingClose = false
+  if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null }
+  // User tapped "Back to Map" — settle any completed task before leaving
+  // so progress is never lost on manual exit (idempotent).
+  settleXp()
   if (gemini) { gemini.disconnect(); gemini = null }
   router.push('/map')
 }
@@ -561,6 +814,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (eyeRestTimer) clearInterval(eyeRestTimer)
+  if (autoCloseTimer) { clearTimeout(autoCloseTimer); autoCloseTimer = null }
+  settleXp()
   if (gemini) { gemini.disconnect(); gemini = null }
 })
 </script>
@@ -1132,6 +1387,29 @@ onUnmounted(() => {
   font-size: 10px;
   font-weight: 800;
   color: white;
+}
+
+.drawer-photo-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 120px;
+  border-radius: 14px;
+  border: 2px dashed #cbd5e1;
+  background: #f8fafc;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #64748b;
+  text-align: center;
+}
+
+.drawer-photo-empty-sub {
+  font-size: 10px;
+  font-weight: 600;
+  color: #94a3b8;
 }
 
 .drawer-edu-scroll {
